@@ -39,7 +39,7 @@ export default function Signup() {
 
       if (!response.ok) {
         const data = await response.json();
-        setError(data.message || 'Failed to create account');
+        setError(data.error || data.message || 'Failed to create account');
         return;
       }
 
