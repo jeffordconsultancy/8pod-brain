@@ -3,18 +3,12 @@
 import { useSession } from 'next-auth/react';
 import { FormEvent, useState } from 'react';
 
-interface QueryResult {
-  id: string;
-  title: string;
-  description: string;
-  source: string;
-  relevance: number;
-}
-
 export default function Query() {
   const { data: session, status } = useSession();
   const [queryText, setQueryText] = useState('');
-  const [results, setResults] = useState<QueryResult[]>([]);
+  const [response, setResponse] = useState('');
+  const [sources, setSources] = useState<{ source: string; id: string }[]>([]);
+  const [responseTime, setResponseTime] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,27 +17,31 @@ export default function Query() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
-    setResults([]);
+    setResponse('');
+    setSources([]);
+    setResponseTime(null);
     setLoading(true);
 
     try {
-      const response = await fetch('/api/query', {
+      const res = await fetch('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: queryText,
-          workspace: (session as any)?.workspaceId,
+          workspaceId: (session as any)?.workspaceId,
         }),
       });
 
-      if (!response.ok) {
-        const data = await response.json();
+      if (!res.ok) {
+        const data = await res.json();
         setError(data.error || 'Query failed');
         return;
       }
 
-      const data = await response.json();
-      setResults(data.results || []);
+      const data = await res.json();
+      setResponse(data.response || '');
+      setSources(data.sources || []);
+      setResponseTime(data.responseTimeMs || null);
     } catch (err) {
       setError('An error occurred while querying.');
     } finally {
@@ -55,16 +53,12 @@ export default function Query() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-white mb-2">Query</h1>
-        <p className="text-gray-400">
-          Search and query your knowledge base
-        </p>
+        <p className="text-gray-400">Ask questions about your connected data</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Search Query
-          </label>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Your Question</label>
           <textarea
             value={queryText}
             onChange={(e) => setQueryText(e.target.value)}
@@ -75,49 +69,40 @@ export default function Query() {
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={loading || !queryText}
-          className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-        >
-          {loading ? 'Searching...' : 'Search'}
+        <button type="submit" disabled={loading || !queryText}
+          className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
+          {loading ? 'Thinking...' : 'Ask'}
         </button>
       </form>
 
       {error && (
-        <div className="bg-red-900/30 border border-red-700 text-red-200 px-4 py-3 rounded-lg">
-          {error}
-        </div>
+        <div className="bg-red-900/30 border border-red-700 text-red-200 px-4 py-3 rounded-lg">{error}</div>
       )}
 
-      {results.length > 0 && (
+      {response && (
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-white">
-            Results ({results.length})
-          </h2>
-          <div className="space-y-3">
-            {results.map((result) => (
-              <div
-                key={result.id}
-                className="bg-gray-900 border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="text-lg font-bold text-white">{result.title}</h3>
-                  <div className="text-xs font-medium text-blue-400">
-                    {Math.round(result.relevance * 100)}% match
-                  </div>
-                </div>
-                <p className="text-gray-400 text-sm mb-2">{result.description}</p>
-                <p className="text-xs text-gray-500">Source: {result.source}</p>
-              </div>
-            ))}
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-white">Response</h2>
+              {responseTime && (
+                <span className="text-xs text-gray-500">{(responseTime / 1000).toFixed(1)}s</span>
+              )}
+            </div>
+            <div className="text-gray-300 whitespace-pre-wrap">{response}</div>
           </div>
-        </div>
-      )}
 
-      {!loading && results.length === 0 && queryText && !error && (
-        <div className="text-center py-8">
-          <p className="text-gray-400">No results found</p>
+          {sources.length > 0 && (
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-gray-400 mb-2">Sources</h3>
+              <div className="flex flex-wrap gap-2">
+                {sources.map((s, i) => (
+                  <span key={i} className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded">
+                    {s.source}: {s.id}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

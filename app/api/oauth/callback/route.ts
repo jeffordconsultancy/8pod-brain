@@ -7,7 +7,8 @@ import { exchangeGitHubCode } from '@/lib/oauth/github';
 import { ConnectionProvider } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
-  const base = request.nextUrl.origin;
+  // Use NEXTAUTH_URL for redirects since request.nextUrl.origin returns localhost behind reverse proxy
+  const base = process.env.NEXTAUTH_URL || request.nextUrl.origin;
   try {
     const code = request.nextUrl.searchParams.get('code');
     const state = request.nextUrl.searchParams.get('state');
