@@ -17,8 +17,6 @@ export default function Knowledge() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  if (status === 'loading') return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
-
   useEffect(() => {
     async function fetchRecords() {
       try {
@@ -41,55 +39,43 @@ export default function Knowledge() {
       }
     }
 
-    if ((session as any)?.workspaceId) {
+    if (status === 'authenticated' && (session as any)?.workspaceId) {
       fetchRecords();
     }
-  }, [session]);
+  }, [session, status]);
+
+  if (status === 'loading') {
+    return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
+  }
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-white mb-2">Knowledge</h1>
-        <p className="text-gray-400">
-          View and manage your knowledge records
-        </p>
+        <p className="text-gray-400">View and manage your knowledge records</p>
       </div>
 
       {error && (
-        <div className="bg-red-900/30 border border-red-700 text-red-200 px-4 py-3 rounded-lg">
-          {error}
-        </div>
+        <div className="bg-red-900/30 border border-red-700 text-red-200 px-4 py-3 rounded-lg">{error}</div>
       )}
 
       {loading && (
-        <div className="text-center py-8">
-          <p className="text-gray-400">Loading knowledge records...</p>
-        </div>
+        <div className="text-center py-8"><p className="text-gray-400">Loading knowledge records...</p></div>
       )}
 
       {!loading && records.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-white">
-            Records ({records.length})
-          </h2>
+          <h2 className="text-xl font-bold text-white">Records ({records.length})</h2>
           <div className="space-y-3">
             {records.map((record) => (
-              <div
-                key={record.id}
-                className="bg-gray-900 border border-gray-800 rounded-lg p-6 hover:border-gray-700 transition"
-              >
+              <div key={record.id} className="bg-gray-900 border border-gray-800 rounded-lg p-6 hover:border-gray-700 transition">
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="text-lg font-bold text-white">{record.title}</h3>
-                  <span className="text-xs font-medium text-gray-400 bg-gray-800 px-3 py-1 rounded-full">
-                    {record.source}
-                  </span>
+                  <span className="text-xs font-medium text-gray-400 bg-gray-800 px-3 py-1 rounded-full">{record.source}</span>
                 </div>
-                <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                  {record.content}
-                </p>
+                <p className="text-gray-400 text-sm mb-4 line-clamp-2">{record.content}</p>
                 <p className="text-xs text-gray-500">
-                  {new Date(record.createdAt).toLocaleDateString()} at{' '}
-                  {new Date(record.createdAt).toLocaleTimeString()}
+                  {new Date(record.createdAt).toLocaleDateString()} at {new Date(record.createdAt).toLocaleTimeString()}
                 </p>
               </div>
             ))}
@@ -98,9 +84,7 @@ export default function Knowledge() {
       )}
 
       {!loading && records.length === 0 && !error && (
-        <div className="text-center py-8">
-          <p className="text-gray-400">No knowledge records yet</p>
-        </div>
+        <div className="text-center py-8"><p className="text-gray-400">No knowledge records yet</p></div>
       )}
     </div>
   );
