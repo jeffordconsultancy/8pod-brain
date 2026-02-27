@@ -1,7 +1,6 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
 import { useState } from 'react';
 
 interface ApiKey {
@@ -12,7 +11,7 @@ interface ApiKey {
 }
 
 export default function Settings() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([
     {
       id: '1',
@@ -26,9 +25,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  if (!session) {
-    redirect('/login');
-  }
+  if (status === 'loading') return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
 
   const handleCreateKey = async (e: React.FormEvent) => {
     e.preventDefault();

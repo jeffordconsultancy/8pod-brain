@@ -1,7 +1,6 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
 import { useState } from 'react';
 
 interface Provider {
@@ -51,12 +50,10 @@ const providers: Provider[] = [
 ];
 
 export default function Connections() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [providersList, setProvidersList] = useState(providers);
 
-  if (!session) {
-    redirect('/login');
-  }
+  if (status === 'loading') return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
 
   const handleConnect = (providerId: string) => {
     // In a real app, this would open OAuth flow

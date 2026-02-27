@@ -1,7 +1,6 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 interface KnowledgeRecord {
@@ -13,14 +12,12 @@ interface KnowledgeRecord {
 }
 
 export default function Knowledge() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [records, setRecords] = useState<KnowledgeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  if (!session) {
-    redirect('/login');
-  }
+  if (status === 'loading') return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
 
   useEffect(() => {
     async function fetchRecords() {
