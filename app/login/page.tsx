@@ -1,7 +1,7 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
-import { FormEvent, useState } from 'react';
+import { signIn, useSession } from 'next-auth/react';
+import { FormEvent, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -11,6 +11,15 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { data: session, status } = useSession();
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      router.replace('/');
+    }
+  }, [status, router]);
+
+  if (status === 'authenticated') return null;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -27,7 +36,8 @@ export default function Login() {
       if (result?.error) {
         setError('Invalid email or password');
       } else if (result?.ok) {
-        router.push('/');
+        router.replace('/');
+        router.refresh();
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
@@ -53,48 +63,27 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+              <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-600"
-                placeholder="you@example.com"
-                required
-              />
+                placeholder="you@example.com" required />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+              <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-600"
-                placeholder="••••••••"
-                required
-              />
+                placeholder="••••••••" required />
             </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-            >
+            <button type="submit" disabled={loading}
+              className="w-full py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50">
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-gray-400 text-sm">
-              Don't have an account?{' '}
-              <Link href="/signup" className="text-blue-400 hover:text-blue-300">
-                Sign up
-              </Link>
+              Don&apos;t have an account?{' '}
+              <Link href="/signup" className="text-blue-400 hover:text-blue-300">Sign up</Link>
             </p>
           </div>
         </div>
