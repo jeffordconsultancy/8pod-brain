@@ -25,7 +25,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  if (status === 'loading') return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
+  if (status === 'loading' || !session) return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
 
   const handleCreateKey = async (e: React.FormEvent) => {
     e.preventDefault();
