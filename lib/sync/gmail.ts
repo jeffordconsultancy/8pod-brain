@@ -38,6 +38,10 @@ export async function syncGmail(connectionId: string): Promise<{ synced: number;
   const errors: string[] = [];
   let synced = 0;
 
+  const log = await db.ingestionLog.create({
+    data: { workspaceId: connection.workspaceId, sourceSystem: 'gmail', status: 'running' },
+  });
+
   try {
     // Fetch recent messages (last 50)
     const listRes = await gmail.users.messages.list({
@@ -47,8 +51,10 @@ export async function syncGmail(connectionId: string): Promise<{ synced: number;
     });
 
     const messages = listRes.data.messages || [];
+    let processed = 0;
 
     for (const msg of messages) {
+      processed++;
       try {
         // Check if already ingested
         const existing = await db.knowledgeRecord.findFirst({
@@ -136,10 +142,19 @@ export async function syncGmail(connectionId: string): Promise<{ synced: number;
       },
     });
 
+    await db.ingestionLog.update({
+      where: { id: log.id },
+      data: { status: 'completed', recordsProcessed: processed, recordsCreated: synced, completedAt: new Date(), errorMessage: errors.length > 0 ? errors.join('; ') : null },
+    });
+
   } catch (err: any) {
     await db.connection.update({
       where: { id: connectionId },
       data: { status: 'ERROR', errorMessage: err.message },
+    });
+    await db.ingestionLog.update({
+      where: { id: log.id },
+      data: { status: 'error', errorMessage: err.message, completedAt: new Date() },
     });
     throw err;
   }

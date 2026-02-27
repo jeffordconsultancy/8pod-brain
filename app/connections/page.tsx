@@ -16,8 +16,8 @@ interface ConnectionData {
 const providers = [
   { id: 'gmail', name: 'Gmail', icon: '✉️', description: 'Connect your Gmail to index emails and conversations', syncSupported: true },
   { id: 'slack', name: 'Slack', icon: '💬', description: 'Connect your Slack workspace for messaging data', syncSupported: false },
-  { id: 'google-drive', name: 'Google Drive', icon: '📁', description: 'Connect Google Drive to index documents', syncSupported: false },
-  { id: 'google-calendar', name: 'Google Calendar', icon: '📅', description: 'Connect Google Calendar for event data', syncSupported: false },
+  { id: 'google-drive', name: 'Google Drive', icon: '📁', description: 'Connect Google Drive to index documents', syncSupported: true },
+  { id: 'google-calendar', name: 'Google Calendar', icon: '📅', description: 'Connect Google Calendar for event data', syncSupported: true },
   { id: 'github', name: 'GitHub', icon: '🐙', description: 'Connect GitHub for repository and issue data', syncSupported: false },
 ];
 
