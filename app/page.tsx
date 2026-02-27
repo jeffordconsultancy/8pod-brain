@@ -1,30 +1,6 @@
-'use client';
-
-import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 export default function Home() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.replace('/login');
-    }
-  }, [status, router]);
-
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-gray-400">Loading...</p>
-      </div>
-    );
-  }
-
-  if (!session) return null;
-
   return (
     <div className="space-y-8">
       <div>
