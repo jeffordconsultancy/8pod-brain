@@ -52,9 +52,10 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  ownedWorkspaces  Workspace[]
-  memberships      WorkspaceMember[]
-  connections      Connection[]
+  ownedWorkspaces    Workspace[]
+  memberships        WorkspaceMember[]
+  connections        Connection[]
+  forecastProjects   ForecastProject[]
 
   @@map("users")
 }
@@ -79,6 +80,7 @@ model Workspace {
   ingestionLogs      IngestionLog[]
   agentQueries       AgentQuery[]
   auditLogs          AuditLog[]
+  forecastProjects   ForecastProject[]
 
   @@map("workspaces")
 }
@@ -252,4 +254,43 @@ model AuditLog {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("audit_logs")
+}
+
+model ForecastProject {
+  id                  String    @id @default(uuid())
+  workspaceId         String
+  name                String
+  status              String    @default("prompt")
+  sponsorName         String?
+  sponsorBrief        String?
+  rightsHolder        String?
+  market              String?
+  blueprint           Json?
+  blueprintApprovedAt DateTime?
+  insightsData        Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  createdById         String
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User              @relation(fields: [createdById], references: [id])
+  insights  ForecastInsight[]
+
+  @@map("forecast_projects")
+}
+
+model ForecastInsight {
+  id          String @id @default(uuid())
+  projectId   String
+  category    String
+  title       String
+  description String
+  chartType   String
+  data        Json
+  metadata    Json   @default("{}")
+
+  project ForecastProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("forecast_insights")
 }
