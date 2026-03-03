@@ -1,11 +1,19 @@
 'use client';
 
 import { signIn, useSession } from 'next-auth/react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function Login() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-950 flex items-center justify-center"><p className="text-gray-400">Loading...</p></div>}>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
