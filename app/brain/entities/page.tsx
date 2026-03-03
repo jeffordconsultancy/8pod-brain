@@ -12,6 +12,7 @@ interface Entity {
   mentionCount: number;
   firstSeen?: string;
   lastSeen?: string;
+  contributors?: string[];
 }
 
 export default function Entities() {
@@ -139,6 +140,11 @@ export default function Entities() {
                   </span>
                   <span className="text-sm font-medium text-gray-400">{entity.mentionCount} mention{entity.mentionCount !== 1 ? 's' : ''}</span>
                 </div>
+                {scope === 'team' && entity.contributors && entity.contributors.length > 0 && (
+                  <p className="text-xs text-blue-400 mt-2">
+                    From: {entity.contributors.join(', ')}
+                  </p>
+                )}
                 {entity.lastSeen && (
                   <p className="text-xs text-gray-500 mt-2">Last seen: {new Date(entity.lastSeen).toLocaleDateString()}</p>
                 )}

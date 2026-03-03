@@ -16,7 +16,7 @@ export const authConfig: NextAuthConfig = {
 
         const user = await db.user.findUnique({
           where: { email: credentials.email as string },
-          include: { memberships: { include: { workspace: true }, take: 1 } },
+          include: { memberships: { include: { workspace: true }, orderBy: { joinedAt: 'desc' }, take: 1 } },
         });
 
         if (!user?.passwordHash) return null;

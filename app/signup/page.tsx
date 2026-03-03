@@ -1,9 +1,9 @@
 'use client';
 
 import { signIn } from 'next-auth/react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function Signup() {
   const [name, setName] = useState('');
@@ -12,7 +12,24 @@ export default function Signup() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inviteInfo, setInviteInfo] = useState<{ workspaceName: string; inviterName: string } | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get('invite');
+
+  useEffect(() => {
+    if (inviteToken) {
+      fetch(`/api/invites/${inviteToken}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && !data.expired && !data.used) {
+            setInviteInfo({ workspaceName: data.workspaceName, inviterName: data.inviterName });
+            if (data.email) setEmail(data.email);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [inviteToken]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -34,7 +51,7 @@ export default function Signup() {
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, inviteToken }),
       });
 
       if (!response.ok) {
@@ -67,9 +84,22 @@ export default function Signup() {
       <div className="w-full max-w-md">
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-8">
           <h1 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-            🧠 8pod Brain
+            8pod Brain
           </h1>
-          <p className="text-gray-400 mb-8">Create a new account</p>
+          <p className="text-gray-400 mb-6">
+            {inviteInfo ? 'Join your team' : 'Create a new account'}
+          </p>
+
+          {inviteInfo && (
+            <div className="bg-blue-900/30 border border-blue-700 text-blue-200 px-4 py-3 rounded-lg mb-6">
+              <p className="text-sm font-medium">
+                {inviteInfo.inviterName} invited you to join <strong>{inviteInfo.workspaceName}</strong>
+              </p>
+              <p className="text-xs text-blue-300 mt-1">
+                Create an account to get started
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-900/30 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-6">
@@ -115,7 +145,7 @@ export default function Signup() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-600"
-                placeholder="••••••••"
+                placeholder="At least 6 characters"
                 required
               />
             </div>
@@ -129,7 +159,7 @@ export default function Signup() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-600"
-                placeholder="••••••••"
+                placeholder="Re-enter password"
                 required
               />
             </div>
@@ -139,14 +169,14 @@ export default function Signup() {
               disabled={loading}
               className="w-full py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
             >
-              {loading ? 'Creating account...' : 'Sign Up'}
+              {loading ? 'Creating account...' : inviteInfo ? 'Join Workspace' : 'Sign Up'}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-gray-400 text-sm">
               Already have an account?{' '}
-              <Link href="/login" className="text-blue-400 hover:text-blue-300">
+              <Link href={inviteToken ? `/login?invite=${inviteToken}` : '/login'} className="text-blue-400 hover:text-blue-300">
                 Sign in
               </Link>
             </p>

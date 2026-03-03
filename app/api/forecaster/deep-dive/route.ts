@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAIClients } from '@/lib/ai';
+import { getKnowledgeContext } from '@/lib/knowledge-context';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,13 +18,17 @@ export async function POST(request: NextRequest) {
 
     const { claude, openai, preferredProvider } = await getAIClients(workspaceId);
 
+    const bp = project.blueprint as any;
+    const queryHints = [bp?.sponsorName, bp?.rightsHolder, insight.title, insight.category].filter(Boolean).join(' ');
+    const knowledgeContext = await getKnowledgeContext(workspaceId, queryHints);
+
     const context = `Blueprint: ${JSON.stringify(project.blueprint, null, 2)}
 
 Insight to analyse:
 Category: ${insight.category}
 Title: ${insight.title}
 Description: ${insight.description}
-Data: ${JSON.stringify(insight.data, null, 2)}`;
+Data: ${JSON.stringify(insight.data, null, 2)}${knowledgeContext ? `\n\nTeam knowledge context (emails, meetings, documents):\n${knowledgeContext}` : ''}`;
 
     const systemPrompt = `You are the 8pod Algorithm — a deep analytical engine for sports and entertainment commercial intelligence.
 
@@ -34,6 +39,8 @@ Given a Rights Package Blueprint and a specific insight, provide a detailed "dou
 3. Risk factors and sensitivities
 4. Actionable recommendations
 5. Estimated financial impact where relevant
+
+You also have access to the team's connected data (emails, calendar events, documents). Reference any relevant real-world context from the team's data to ground your analysis in actual relationships and communications.
 
 Be specific, authoritative, and commercially focused. Write in clear paragraphs, not bullet points. Reference real-world comparable deals where appropriate.`;
 

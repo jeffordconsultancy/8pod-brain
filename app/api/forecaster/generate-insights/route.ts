@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAIClients } from '@/lib/ai';
+import { getKnowledgeContext } from '@/lib/knowledge-context';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,8 +17,13 @@ export async function POST(request: NextRequest) {
     const { claude, openai, preferredProvider } = await getAIClients(workspaceId);
 
     const blueprintStr = JSON.stringify(project.blueprint, null, 2);
+    const bp = project.blueprint as any;
+    const queryHints = [bp?.sponsorName, bp?.rightsHolder, bp?.market].filter(Boolean).join(' ');
+    const knowledgeContext = await getKnowledgeContext(workspaceId, queryHints || blueprintStr.slice(0, 500));
 
     const systemPrompt = `You are the 8pod Forecaster Algorithm. Given a Rights Package Blueprint for a sponsorship deal, generate 6-8 strategic insights as a JSON array.
+
+You also have access to the team's connected data (emails, calendar events, documents). Incorporate any relevant real-world context — meeting notes, correspondence, existing relationships — to make insights more specific and grounded.
 
 Each insight should have:
 {
@@ -41,7 +47,7 @@ Return ONLY a valid JSON array of insight objects. Be specific and data-driven. 
         model: 'claude-sonnet-4-20250514',
         max_tokens: 3000,
         system: systemPrompt,
-        messages: [{ role: 'user', content: `Blueprint:\n${blueprintStr}` }],
+        messages: [{ role: 'user', content: `Blueprint:\n${blueprintStr}${knowledgeContext ? `\n\nTeam knowledge context:\n${knowledgeContext}` : ''}` }],
       });
       responseText = msg.content[0].type === 'text' ? msg.content[0].text : '[]';
     } else if (openai) {
@@ -50,7 +56,7 @@ Return ONLY a valid JSON array of insight objects. Be specific and data-driven. 
         max_tokens: 3000,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Blueprint:\n${blueprintStr}` },
+          { role: 'user', content: `Blueprint:\n${blueprintStr}${knowledgeContext ? `\n\nTeam knowledge context:\n${knowledgeContext}` : ''}` },
         ],
       });
       responseText = completion.choices[0]?.message?.content || '[]';

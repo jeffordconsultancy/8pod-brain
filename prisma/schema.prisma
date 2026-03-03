@@ -57,6 +57,7 @@ model User {
   connections          Connection[]
   forecastProjects     ForecastProject[]
   contributedKnowledge KnowledgeRecord[] @relation("ContributedKnowledge")
+  createdInvites       WorkspaceInvite[] @relation("InviteCreator")
 
   @@map("users")
 }
@@ -82,6 +83,7 @@ model Workspace {
   agentQueries       AgentQuery[]
   auditLogs          AuditLog[]
   forecastProjects   ForecastProject[]
+  invites            WorkspaceInvite[]
 
   @@map("workspaces")
 }
@@ -296,4 +298,21 @@ model ForecastInsight {
 
   @@index([projectId])
   @@map("forecast_insights")
+}
+
+model WorkspaceInvite {
+  id          String     @id @default(uuid())
+  workspaceId String
+  email       String?
+  token       String     @unique @default(uuid())
+  role        MemberRole @default(MEMBER)
+  createdById String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime   @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("InviteCreator", fields: [createdById], references: [id])
+
+  @@map("workspace_invites")
 }

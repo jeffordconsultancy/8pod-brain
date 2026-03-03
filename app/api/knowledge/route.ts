@@ -23,6 +23,9 @@ export async function GET(request: NextRequest) {
       where,
       take: 50,
       orderBy: { createdAt: 'desc' },
+      include: {
+        contributedBy: { select: { id: true, name: true, email: true } },
+      },
     });
 
     return NextResponse.json({ records });

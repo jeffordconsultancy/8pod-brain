@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAIClients } from '@/lib/ai';
+import { getKnowledgeContext } from '@/lib/knowledge-context';
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,7 +32,15 @@ Return ONLY valid JSON with this structure:
   "audienceProfile": "Description of target audience"
 }
 
+You also have access to the team's connected data (emails, calendar events, documents). Use any relevant information from this context to make the blueprint more specific and grounded in real relationships and conversations.
+
 Be specific, commercial, and practical. Draw on your knowledge of sports sponsorship, media rights, and brand partnerships.`;
+
+    // Fetch knowledge context from the combined team pool
+    const knowledgeContext = await getKnowledgeContext(workspaceId, project.sponsorBrief);
+    const userContent = knowledgeContext
+      ? `${project.sponsorBrief}\n\nTeam knowledge context:\n${knowledgeContext}`
+      : project.sponsorBrief;
 
     let responseText: string;
 
@@ -40,7 +49,7 @@ Be specific, commercial, and practical. Draw on your knowledge of sports sponsor
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2000,
         system: systemPrompt,
-        messages: [{ role: 'user', content: project.sponsorBrief }],
+        messages: [{ role: 'user', content: userContent }],
       });
       responseText = msg.content[0].type === 'text' ? msg.content[0].text : '{}';
     } else if (openai) {
@@ -49,7 +58,7 @@ Be specific, commercial, and practical. Draw on your knowledge of sports sponsor
         max_tokens: 2000,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: project.sponsorBrief },
+          { role: 'user', content: userContent },
         ],
       });
       responseText = completion.choices[0]?.message?.content || '{}';

@@ -29,9 +29,32 @@ export async function GET(request: NextRequest) {
       where,
       orderBy: { mentionCount: 'desc' },
       take: 50,
+      include: {
+        mentions: {
+          select: {
+            record: {
+              select: {
+                contributedBy: { select: { id: true, name: true } },
+              },
+            },
+          },
+          take: 10,
+        },
+      },
     });
 
-    return NextResponse.json({ entities });
+    // Derive unique contributors per entity
+    const entitiesWithContributors = entities.map(e => {
+      const contributorMap = new Map<string, string>();
+      for (const m of (e as any).mentions || []) {
+        const user = m.record?.contributedBy;
+        if (user) contributorMap.set(user.id, user.name || 'Unknown');
+      }
+      const { mentions, ...rest } = e as any;
+      return { ...rest, contributors: Array.from(contributorMap.values()) };
+    });
+
+    return NextResponse.json({ entities: entitiesWithContributors });
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to fetch entities' },

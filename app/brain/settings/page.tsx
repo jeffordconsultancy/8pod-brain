@@ -3,6 +3,22 @@
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
+interface TeamMember {
+  id: string;
+  role: string;
+  joinedAt: string;
+  user: { id: string; name?: string; email: string; avatarUrl?: string };
+}
+
+interface PendingInvite {
+  id: string;
+  token: string;
+  email?: string;
+  role: string;
+  expiresAt: string;
+  createdBy: { name?: string; email: string };
+}
+
 export default function Settings() {
   const { data: session, status } = useSession();
   const [anthropicKey, setAnthropicKey] = useState('');
@@ -15,12 +31,21 @@ export default function Settings() {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [loading, setLoading] = useState(true);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteLink, setInviteLink] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const workspaceId = (session as any)?.workspaceId;
+  const currentUserId = (session?.user as any)?.id;
 
   useEffect(() => {
     if (status === 'authenticated' && workspaceId) {
       fetchKeyStatus();
+      fetchTeam();
+      fetchInvites();
     }
   }, [status, workspaceId]);
 
@@ -115,6 +140,67 @@ export default function Settings() {
     }
   }
 
+  async function fetchTeam() {
+    try {
+      const res = await fetch(`/api/team?workspace=${workspaceId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMembers(data.members || []);
+      }
+    } catch {}
+  }
+
+  async function fetchInvites() {
+    try {
+      const res = await fetch(`/api/invites?workspace=${workspaceId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPendingInvites(data.invites || []);
+      }
+    } catch {}
+  }
+
+  async function handleInvite() {
+    if (!workspaceId || !currentUserId) return;
+    setInviting(true);
+    setInviteLink('');
+
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId, email: inviteEmail || undefined, userId: currentUserId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const link = `${window.location.origin}/invite/${data.invite.token}`;
+        setInviteLink(link);
+        setInviteEmail('');
+        await fetchInvites();
+      } else {
+        const data = await res.json();
+        setMessage(data.error || 'Failed to create invite');
+        setMessageType('error');
+        setTimeout(() => setMessage(''), 5000);
+      }
+    } catch {
+      setMessage('Failed to create invite');
+      setMessageType('error');
+      setTimeout(() => setMessage(''), 5000);
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  function copyInviteLink() {
+    if (typeof navigator !== 'undefined') {
+      navigator.clipboard.writeText(inviteLink);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
+  }
+
   if (status === 'loading' || !session || loading) {
     return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
   }
@@ -147,6 +233,83 @@ export default function Settings() {
             <label className="text-sm font-medium text-gray-400">Email</label>
             <p className="text-white mt-1">{session.user?.email}</p>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+        <h2 className="text-xl font-bold text-white mb-4">Team</h2>
+
+        {/* Members list */}
+        <div className="space-y-3 mb-6">
+          {members.map(m => (
+            <div key={m.id} className="flex items-center justify-between py-3 border-b border-gray-800 last:border-0">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+                  {(m.user.name || m.user.email)[0].toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-white font-medium text-sm">
+                    {m.user.name || m.user.email}
+                    {m.user.id === currentUserId && <span className="text-gray-500 ml-1">(you)</span>}
+                  </p>
+                  <p className="text-gray-500 text-xs">{m.user.email}</p>
+                </div>
+              </div>
+              <span className="text-xs text-gray-500 capitalize">{m.role.toLowerCase()}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Invite form */}
+        <div className="pt-4 border-t border-gray-800">
+          <p className="text-sm font-medium text-gray-300 mb-3">Invite Team Member</p>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-600 text-sm"
+              placeholder="Email (optional)"
+            />
+            <button
+              onClick={handleInvite}
+              disabled={inviting}
+              className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm whitespace-nowrap"
+            >
+              {inviting ? 'Creating...' : 'Create Invite'}
+            </button>
+          </div>
+
+          {inviteLink && (
+            <div className="mt-3 p-3 bg-gray-800 rounded-lg">
+              <p className="text-xs text-gray-400 mb-2">Share this link with your teammate:</p>
+              <div className="flex items-center gap-2">
+                <code className="text-xs text-blue-400 bg-gray-900 px-2 py-1 rounded flex-1 overflow-hidden text-ellipsis">
+                  {inviteLink}
+                </code>
+                <button
+                  onClick={copyInviteLink}
+                  className="px-3 py-1 bg-gray-700 text-gray-300 text-xs rounded hover:bg-gray-600 transition whitespace-nowrap"
+                >
+                  {copiedLink ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {pendingInvites.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs text-gray-500 mb-2">Pending invites:</p>
+              {pendingInvites.map(inv => (
+                <div key={inv.id} className="flex items-center justify-between py-2 text-xs">
+                  <span className="text-gray-400">{inv.email || 'Open invite'}</span>
+                  <span className="text-gray-600">
+                    Expires {new Date(inv.expiresAt).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

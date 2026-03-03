@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   // Public routes - no auth required
-  const publicPaths = ['/login', '/signup', '/api/auth', '/api/health'];
+  const publicPaths = ['/login', '/signup', '/api/auth', '/api/health', '/invite', '/api/invites'];
   const isPublic = publicPaths.some(p => request.nextUrl.pathname.startsWith(p));
   if (isPublic) return NextResponse.next();
 

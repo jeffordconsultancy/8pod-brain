@@ -13,6 +13,7 @@ interface KnowledgeRecord {
   summary: string;
   createdAt: string;
   metadata?: any;
+  contributedBy?: { id: string; name?: string; email: string };
 }
 
 const sourceIcons: Record<string, string> = {
@@ -136,6 +137,11 @@ export default function Knowledge() {
                     {new Date(record.createdAt).toLocaleDateString()} at {new Date(record.createdAt).toLocaleTimeString()}
                   </p>
                   <span className="text-xs text-gray-600">{record.contentType}</span>
+                  {scope === 'team' && record.contributedBy && (
+                    <span className="text-xs text-blue-400">
+                      by {record.contributedBy.name || record.contributedBy.email}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

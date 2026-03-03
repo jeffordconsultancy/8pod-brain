@@ -1,9 +1,9 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -11,6 +11,8 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get('invite');
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -27,6 +29,24 @@ export default function Login() {
       if (result?.error) {
         setError('Invalid email or password');
       } else if (result?.ok) {
+        // If there's an invite token, accept it after login
+        if (inviteToken) {
+          try {
+            // Get the user's ID from the session
+            const sessionRes = await fetch('/api/auth/session');
+            const session = await sessionRes.json();
+            const userId = session?.user?.id;
+            if (userId) {
+              await fetch('/api/invites/accept', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: inviteToken, userId }),
+              });
+            }
+          } catch {
+            // Invite acceptance failed, but login succeeded — continue
+          }
+        }
         router.push('/');
       }
     } catch (err) {
@@ -41,7 +61,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-8">
           <h1 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-            🧠 8pod Brain
+            8pod Brain
           </h1>
           <p className="text-gray-400 mb-8">Sign in to your account</p>
 
@@ -75,7 +95,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-600"
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 required
               />
             </div>
@@ -91,8 +111,8 @@ export default function Login() {
 
           <div className="mt-6 text-center">
             <p className="text-gray-400 text-sm">
-              Don't have an account?{' '}
-              <Link href="/signup" className="text-blue-400 hover:text-blue-300">
+              Don&apos;t have an account?{' '}
+              <Link href={inviteToken ? `/signup?invite=${inviteToken}` : '/signup'} className="text-blue-400 hover:text-blue-300">
                 Sign up
               </Link>
             </p>
