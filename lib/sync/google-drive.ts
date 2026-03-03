@@ -59,7 +59,7 @@ export async function syncGoogleDrive(connectionId: string): Promise<{ synced: n
       processed++;
       try {
         const existing = await db.knowledgeRecord.findFirst({
-          where: { workspaceId: connection.workspaceId, sourceSystem: 'google-drive', sourceId: file.id! },
+          where: { workspaceId: connection.workspaceId, sourceSystem: 'google-drive', sourceId: file.id!, contributedById: connection.createdById },
         });
         if (existing) continue;
 
@@ -94,6 +94,7 @@ export async function syncGoogleDrive(connectionId: string): Promise<{ synced: n
             contentType: 'document',
             rawContent,
             summary: `Drive: ${file.name} (by ${owner})`,
+            contributedById: connection.createdById,
             metadata: { name: file.name, mimeType: file.mimeType, owner, modifiedTime: file.modifiedTime },
           },
         });

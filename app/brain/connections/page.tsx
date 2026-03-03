@@ -11,6 +11,8 @@ interface ConnectionData {
   lastSyncAt?: string;
   recordsSynced: number;
   errorMessage?: string;
+  createdById?: string;
+  createdBy?: { id: string; name?: string; email: string };
 }
 
 const providers = [
@@ -51,7 +53,9 @@ export default function Connections() {
     }
   }
 
-  function getConnection(providerId: string): ConnectionData | undefined {
+  const currentUserId = (session?.user as any)?.id;
+
+  function getMyConnection(providerId: string): ConnectionData | undefined {
     const providerMap: Record<string, string> = {
       'gmail': 'GMAIL',
       'slack': 'SLACK',
@@ -59,12 +63,24 @@ export default function Connections() {
       'google-calendar': 'GOOGLE_CALENDAR',
       'github': 'GITHUB',
     };
-    return connections.find(c => c.provider === providerMap[providerId] && c.status === 'ACTIVE');
+    return connections.find(c => c.provider === providerMap[providerId] && c.status === 'ACTIVE' && c.createdById === currentUserId);
+  }
+
+  function getTeamConnections(providerId: string): ConnectionData[] {
+    const providerMap: Record<string, string> = {
+      'gmail': 'GMAIL',
+      'slack': 'SLACK',
+      'google-drive': 'GOOGLE_DRIVE',
+      'google-calendar': 'GOOGLE_CALENDAR',
+      'github': 'GITHUB',
+    };
+    return connections.filter(c => c.provider === providerMap[providerId] && c.status === 'ACTIVE' && c.createdById !== currentUserId);
   }
 
   function handleConnect(providerId: string) {
     if (!workspaceId) return;
-    window.location.href = `/api/oauth/connect/${providerId}?workspace=${workspaceId}`;
+    const userId = (session?.user as any)?.id;
+    window.location.href = `/api/oauth/connect/${providerId}?workspace=${workspaceId}&userId=${userId}`;
   }
 
   async function handleDisconnect(connectionId: string) {
@@ -127,8 +143,9 @@ export default function Connections() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {providers.map((provider) => {
-            const connection = getConnection(provider.id);
-            const isConnected = !!connection;
+            const myConnection = getMyConnection(provider.id);
+            const teamConns = getTeamConnections(provider.id);
+            const isConnected = !!myConnection;
 
             return (
               <div key={provider.id} className="bg-gray-900 border border-gray-800 rounded-lg p-6 hover:border-gray-700 transition">
@@ -146,45 +163,56 @@ export default function Connections() {
                 <h3 className="text-lg font-bold text-white mb-2">{provider.name}</h3>
                 <p className="text-gray-400 text-sm mb-4">{provider.description}</p>
 
-                {isConnected && connection?.accountEmail && (
-                  <p className="text-xs text-gray-500 mb-2">Connected as: {connection.accountEmail}</p>
+                {isConnected && myConnection?.accountEmail && (
+                  <p className="text-xs text-gray-500 mb-2">Your account: {myConnection.accountEmail}</p>
                 )}
 
-                {isConnected && connection?.lastSyncAt && (
+                {isConnected && myConnection?.lastSyncAt && (
                   <p className="text-xs text-gray-500 mb-2">
-                    Last sync: {new Date(connection.lastSyncAt).toLocaleDateString()} · {connection.recordsSynced} records
+                    Last sync: {new Date(myConnection.lastSyncAt).toLocaleDateString()} · {myConnection.recordsSynced} records
                   </p>
                 )}
 
-                {isConnected && !connection?.lastSyncAt && (
+                {isConnected && !myConnection?.lastSyncAt && (
                   <p className="text-xs text-yellow-400 mb-2">Connected — not synced yet</p>
                 )}
 
-                {connection?.errorMessage && (
-                  <p className="text-xs text-red-400 mb-2">{connection.errorMessage}</p>
+                {myConnection?.errorMessage && (
+                  <p className="text-xs text-red-400 mb-2">{myConnection.errorMessage}</p>
+                )}
+
+                {teamConns.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-800">
+                    {teamConns.map(tc => (
+                      <p key={tc.id} className="text-xs text-gray-500 mb-1">
+                        Team: {tc.createdBy?.name || tc.createdBy?.email || 'teammate'} — {tc.accountEmail || 'connected'}
+                        {tc.recordsSynced > 0 && ` · ${tc.recordsSynced} records`}
+                      </p>
+                    ))}
+                  </div>
                 )}
 
                 <div className="space-y-2 mt-4">
                   {isConnected && provider.syncSupported && (
                     <button
-                      onClick={() => handleSync(connection!.id)}
-                      disabled={syncing === connection!.id}
+                      onClick={() => handleSync(myConnection!.id)}
+                      disabled={syncing === myConnection!.id}
                       className="w-full py-2 px-4 rounded-lg font-medium transition bg-green-700 text-white hover:bg-green-600 disabled:opacity-50"
                     >
-                      {syncing === connection!.id ? 'Syncing...' : 'Sync Now'}
+                      {syncing === myConnection!.id ? 'Syncing...' : 'Sync Now'}
                     </button>
                   )}
 
                   <button
-                    onClick={() => isConnected ? handleDisconnect(connection!.id) : handleConnect(provider.id)}
-                    disabled={disconnecting === connection?.id}
+                    onClick={() => isConnected ? handleDisconnect(myConnection!.id) : handleConnect(provider.id)}
+                    disabled={disconnecting === myConnection?.id}
                     className={`w-full py-2 px-4 rounded-lg font-medium transition ${
                       isConnected
                         ? 'bg-red-900/30 text-red-200 border border-red-700 hover:bg-red-900/50'
                         : 'bg-blue-600 text-white hover:bg-blue-700'
                     } disabled:opacity-50`}
                   >
-                    {disconnecting === connection?.id ? 'Disconnecting...' : isConnected ? 'Disconnect' : 'Connect'}
+                    {disconnecting === myConnection?.id ? 'Disconnecting...' : isConnected ? 'Disconnect' : 'Connect'}
                   </button>
                 </div>
               </div>

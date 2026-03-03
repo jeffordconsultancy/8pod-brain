@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const stored = request.cookies.get('oauth_state')?.value;
     const provider = request.cookies.get('oauth_provider')?.value;
     const workspaceId = request.cookies.get('oauth_workspace')?.value;
+    const userId = request.cookies.get('oauth_userId')?.value;
 
     if (!state || state !== stored || !code || !provider || !workspaceId) {
       return NextResponse.redirect(new URL('/connections?error=invalid', base), 302);
@@ -36,8 +37,15 @@ export async function GET(request: NextRequest) {
       slack: 'SLACK', github: 'GITHUB',
     };
 
-    const member = await db.workspaceMember.findFirst({ where: { workspaceId } });
-    await db.connection.deleteMany({ where: { workspaceId, provider: map[provider] } });
+    // Use the actual user who initiated OAuth, fall back to first workspace member
+    let createdById = userId;
+    if (!createdById) {
+      const member = await db.workspaceMember.findFirst({ where: { workspaceId } });
+      createdById = member?.userId || '';
+    }
+
+    // Only delete this user's existing connection for this provider (not other users')
+    await db.connection.deleteMany({ where: { workspaceId, provider: map[provider], createdById } });
     await db.connection.create({
       data: {
         workspaceId,
@@ -46,14 +54,15 @@ export async function GET(request: NextRequest) {
         refreshToken: tokens.refresh_token ? encryptToken(tokens.refresh_token) : null,
         tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
         scope: tokens.scope,
-        createdById: member?.userId || '',
+        createdById,
       },
     });
 
-    const res = NextResponse.redirect(new URL('/connections?success=true', base), 302);
+    const res = NextResponse.redirect(new URL('/brain/connections?success=true', base), 302);
     res.cookies.delete('oauth_state');
     res.cookies.delete('oauth_provider');
     res.cookies.delete('oauth_workspace');
+    res.cookies.delete('oauth_userId');
     return res;
   } catch (e) {
     console.error('OAuth callback error:', e);

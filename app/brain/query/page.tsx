@@ -2,6 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { FormEvent, useState } from 'react';
+import ScopeToggle from '@/components/ScopeToggle';
 
 const sourceIcons: Record<string, string> = {
   gmail: '✉️',
@@ -20,6 +21,7 @@ export default function Query() {
   const [provider, setProvider] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [scope, setScope] = useState<'mine' | 'team'>('mine');
 
   if (status === 'loading') return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
 
@@ -39,6 +41,8 @@ export default function Query() {
         body: JSON.stringify({
           query: queryText,
           workspaceId: (session as any)?.workspaceId,
+          scope,
+          userId: (session?.user as any)?.id,
         }),
       });
 
@@ -62,9 +66,12 @@ export default function Query() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Query</h1>
-        <p className="text-gray-400">Ask questions about your connected data — emails, documents, calendar events</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">Query</h1>
+          <p className="text-gray-400">{scope === 'mine' ? 'Ask questions about your data' : 'Ask questions across all team data'}</p>
+        </div>
+        <ScopeToggle scope={scope} onToggle={setScope} />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">

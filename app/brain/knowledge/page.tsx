@@ -2,6 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
+import ScopeToggle from '@/components/ScopeToggle';
 
 interface KnowledgeRecord {
   id: string;
@@ -36,12 +37,14 @@ export default function Knowledge() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<string>('all');
+  const [scope, setScope] = useState<'mine' | 'team'>('mine');
 
   useEffect(() => {
     async function fetchRecords() {
       try {
+        const userId = (session?.user as any)?.id;
         const response = await fetch(
-          `/api/knowledge?workspace=${(session as any)?.workspaceId}`
+          `/api/knowledge?workspace=${(session as any)?.workspaceId}&scope=${scope}&userId=${userId}`
         );
 
         if (!response.ok) {
@@ -62,7 +65,7 @@ export default function Knowledge() {
     if (status === 'authenticated' && (session as any)?.workspaceId) {
       fetchRecords();
     }
-  }, [session, status]);
+  }, [session, status, scope]);
 
   if (status === 'loading') {
     return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
@@ -73,9 +76,12 @@ export default function Knowledge() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Knowledge</h1>
-        <p className="text-gray-400">View and manage your knowledge records</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">Knowledge</h1>
+          <p className="text-gray-400">{scope === 'mine' ? 'Your synced knowledge records' : 'All team knowledge records'}</p>
+        </div>
+        <ScopeToggle scope={scope} onToggle={setScope} />
       </div>
 
       {error && (

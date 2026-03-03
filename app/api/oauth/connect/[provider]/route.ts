@@ -20,6 +20,7 @@ export async function GET(
 ) {
   const provider = params.provider;
   const workspaceId = request.nextUrl.searchParams.get('workspace');
+  const userId = request.nextUrl.searchParams.get('userId');
   if (!workspaceId) {
     return NextResponse.json({ error: 'Missing workspace' }, { status: 400 });
   }
@@ -37,5 +38,6 @@ export async function GET(
   response.cookies.set('oauth_state', state, cookieOpts);
   response.cookies.set('oauth_provider', provider, cookieOpts);
   response.cookies.set('oauth_workspace', workspaceId, cookieOpts);
+  if (userId) response.cookies.set('oauth_userId', userId, cookieOpts);
   return response;
 }

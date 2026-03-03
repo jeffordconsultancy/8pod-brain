@@ -2,6 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
+import ScopeToggle from '@/components/ScopeToggle';
 
 interface Entity {
   id: string;
@@ -19,12 +20,14 @@ export default function Entities() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [scope, setScope] = useState<'mine' | 'team'>('team');
 
   useEffect(() => {
     async function fetchEntities() {
       try {
+        const userId = (session?.user as any)?.id;
         const response = await fetch(
-          `/api/entities?workspace=${(session as any)?.workspaceId}`
+          `/api/entities?workspace=${(session as any)?.workspaceId}&scope=${scope}&userId=${userId}`
         );
 
         if (!response.ok) {
@@ -45,7 +48,7 @@ export default function Entities() {
     if (status === 'authenticated' && (session as any)?.workspaceId) {
       fetchEntities();
     }
-  }, [session, status]);
+  }, [session, status, scope]);
 
   if (status === 'loading') {
     return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
@@ -76,9 +79,12 @@ export default function Entities() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Entities</h1>
-        <p className="text-gray-400">People, companies, topics, and locations extracted from your knowledge base</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">Entities</h1>
+          <p className="text-gray-400">{scope === 'team' ? 'All team entities' : 'Entities from your data'}</p>
+        </div>
+        <ScopeToggle scope={scope} onToggle={setScope} mineLabel="My Entities" teamLabel="All Entities" />
       </div>
 
       {error && (

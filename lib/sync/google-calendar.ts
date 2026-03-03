@@ -64,7 +64,7 @@ export async function syncGoogleCalendar(connectionId: string): Promise<{ synced
         if (!event.id) continue;
 
         const existing = await db.knowledgeRecord.findFirst({
-          where: { workspaceId: connection.workspaceId, sourceSystem: 'google-calendar', sourceId: event.id },
+          where: { workspaceId: connection.workspaceId, sourceSystem: 'google-calendar', sourceId: event.id, contributedById: connection.createdById },
         });
         if (existing) continue;
 
@@ -92,6 +92,7 @@ export async function syncGoogleCalendar(connectionId: string): Promise<{ synced
             contentType: 'calendar-event',
             rawContent,
             summary: `Calendar: ${event.summary || '(No title)'} on ${new Date(start).toLocaleDateString()}`,
+            contributedById: connection.createdById,
             metadata: {
               summary: event.summary,
               start,

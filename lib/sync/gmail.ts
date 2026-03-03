@@ -56,12 +56,13 @@ export async function syncGmail(connectionId: string): Promise<{ synced: number;
     for (const msg of messages) {
       processed++;
       try {
-        // Check if already ingested
+        // Check if already ingested by this user
         const existing = await db.knowledgeRecord.findFirst({
           where: {
             workspaceId: connection.workspaceId,
             sourceSystem: 'gmail',
             sourceId: msg.id!,
+            contributedById: connection.createdById,
           },
         });
 
@@ -115,6 +116,7 @@ export async function syncGmail(connectionId: string): Promise<{ synced: number;
             rawContent,
             summary: `Email: ${subject} (from ${from})`,
             threadId: detail.data.threadId || undefined,
+            contributedById: connection.createdById,
             metadata: {
               subject,
               from,

@@ -4,7 +4,7 @@ import { getAIClients } from '@/lib/ai';
 
 export async function POST(request: NextRequest) {
   try {
-    const { query, workspaceId } = await request.json();
+    const { query, workspaceId, scope = 'mine', userId } = await request.json();
     if (!query || !workspaceId) {
       return NextResponse.json({ error: 'Missing query or workspaceId' }, { status: 400 });
     }
@@ -12,9 +12,14 @@ export async function POST(request: NextRequest) {
     const start = Date.now();
     const { claude, openai, preferredProvider } = await getAIClients(workspaceId);
 
-    // Search for relevant records using text matching
+    // Search for relevant records using text matching, filtered by scope
+    const recordWhere: any = { workspaceId };
+    if (scope === 'mine' && userId) {
+      recordWhere.contributedById = userId;
+    }
+
     const allRecords = await db.knowledgeRecord.findMany({
-      where: { workspaceId },
+      where: recordWhere,
       orderBy: { createdAt: 'desc' },
       take: 200, // Fetch more, then rank
     });

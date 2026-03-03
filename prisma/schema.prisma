@@ -52,10 +52,11 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  ownedWorkspaces    Workspace[]
-  memberships        WorkspaceMember[]
-  connections        Connection[]
-  forecastProjects   ForecastProject[]
+  ownedWorkspaces      Workspace[]
+  memberships          WorkspaceMember[]
+  connections          Connection[]
+  forecastProjects     ForecastProject[]
+  contributedKnowledge KnowledgeRecord[] @relation("ContributedKnowledge")
 
   @@map("users")
 }
@@ -120,32 +121,34 @@ model Connection {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy User      @relation(fields: [createdById], references: [id])
 
-  @@unique([workspaceId, provider])
+  @@unique([workspaceId, provider, createdById])
   @@map("connections")
 }
 
 model KnowledgeRecord {
-  id           String   @id @default(uuid())
-  workspaceId  String
-  sourceSystem String
-  sourceId     String
-  contentType  String
-  rawContent   String
-  summary      String?
-  entities     Json     @default("{}")
-  createdAt    DateTime @default(now())
-  ingestedAt   DateTime @default(now())
-  threadId     String?
-  parentId     String?
-  sensitivity  String   @default("internal")
-  metadata     Json     @default("{}")
+  id              String   @id @default(uuid())
+  workspaceId     String
+  sourceSystem    String
+  sourceId        String
+  contentType     String
+  rawContent      String
+  summary         String?
+  entities        Json     @default("{}")
+  createdAt       DateTime @default(now())
+  ingestedAt      DateTime @default(now())
+  threadId        String?
+  parentId        String?
+  sensitivity     String   @default("internal")
+  metadata        Json     @default("{}")
+  contributedById String?
 
   workspace      Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contributedBy  User?              @relation("ContributedKnowledge", fields: [contributedById], references: [id])
   parent         KnowledgeRecord?   @relation("RecordHierarchy", fields: [parentId], references: [id])
   children       KnowledgeRecord[]  @relation("RecordHierarchy")
   entityMentions EntityMention[]
 
-  @@unique([workspaceId, sourceSystem, sourceId])
+  @@unique([workspaceId, sourceSystem, sourceId, contributedById])
   @@map("knowledge_records")
 }
 

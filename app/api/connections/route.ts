@@ -7,7 +7,18 @@ export async function GET(request: NextRequest) {
 
   const connections = await db.connection.findMany({
     where: { workspaceId },
-    select: { id: true, provider: true, status: true, accountEmail: true, lastSyncAt: true, recordsSynced: true, errorMessage: true, createdAt: true },
+    select: {
+      id: true,
+      provider: true,
+      status: true,
+      accountEmail: true,
+      lastSyncAt: true,
+      recordsSynced: true,
+      errorMessage: true,
+      createdAt: true,
+      createdById: true,
+      createdBy: { select: { id: true, name: true, email: true } },
+    },
   });
   return NextResponse.json(connections);
 }
