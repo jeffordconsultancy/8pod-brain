@@ -103,22 +103,27 @@ model WorkspaceMember {
 }
 
 model Connection {
-  id            String             @id @default(uuid())
-  workspaceId   String
-  provider      ConnectionProvider
-  status        ConnectionStatus   @default(ACTIVE)
-  accessToken   String?
-  refreshToken  String?
-  tokenExpiry   DateTime?
-  scope         String?
-  accountEmail  String?
-  lastSyncAt    DateTime?
-  recordsSynced Int                @default(0)
-  errorMessage  String?
-  config        Json               @default("{}")
-  createdById   String
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id                String             @id @default(uuid())
+  workspaceId       String
+  provider          ConnectionProvider
+  status            ConnectionStatus   @default(ACTIVE)
+  accessToken       String?
+  refreshToken      String?
+  tokenExpiry       DateTime?
+  scope             String?
+  accountEmail      String?
+  lastSyncAt        DateTime?
+  recordsSynced     Int                @default(0)
+  errorMessage      String?
+  config            Json               @default("{}")
+  createdById       String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  // Auto-sync fields
+  autoSyncEnabled   Boolean            @default(false)
+  syncIntervalMin   Int                @default(60)
+  nextSyncAt        DateTime?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy User      @relation(fields: [createdById], references: [id])
@@ -143,6 +148,11 @@ model KnowledgeRecord {
   sensitivity     String   @default("internal")
   metadata        Json     @default("{}")
   contributedById String?
+
+  // Confidentiality lockdown
+  isConfidential    Boolean   @default(false)
+  confidentialSetAt DateTime?
+  confidentialSetBy String?
 
   workspace      Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contributedBy  User?              @relation("ContributedKnowledge", fields: [contributedById], references: [id])
@@ -261,10 +271,15 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// ─────────────────────────────────────────────────────────────
+// FORECASTER PROJECT (updated with new lifecycle statuses)
+// ─────────────────────────────────────────────────────────────
+
 model ForecastProject {
   id                  String    @id @default(uuid())
   workspaceId         String
   name                String
+  // Lifecycle: prompt → blueprint → validating → validated → content-plan → pre-production → production → complete
   status              String    @default("prompt")
   sponsorName         String?
   sponsorBrief        String?
@@ -277,9 +292,14 @@ model ForecastProject {
   updatedAt           DateTime  @updatedAt
   createdById         String
 
-  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdBy User              @relation(fields: [createdById], references: [id])
-  insights  ForecastInsight[]
+  workspace               Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy               User                    @relation(fields: [createdById], references: [id])
+  insights                ForecastInsight[]
+  validationCheckpoints   ValidationCheckpoint[]
+  rightsAssets            RightsAsset[]
+  contentPlans           ContentPlan[]
+  productionBriefs       ProductionBrief[]
+  creativeOverviews      CreativeOverview[]
 
   @@map("forecast_projects")
 }
@@ -298,6 +318,178 @@ model ForecastInsight {
 
   @@index([projectId])
   @@map("forecast_insights")
+}
+
+// ─────────────────────────────────────────────────────────────
+// VALIDATOR — Validation Checkpoints + Rights Assets
+// ─────────────────────────────────────────────────────────────
+
+model ValidationCheckpoint {
+  id              String    @id @default(uuid())
+  projectId       String
+  checkName       String
+  checkOrder      Int       @default(0)
+  status          String    @default("PENDING")  // PENDING, PASS, FAIL
+  requirementText String
+  evidence        String?
+  passedAt        DateTime?
+  createdAt       DateTime  @default(now())
+
+  project ForecastProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("validation_checkpoints")
+}
+
+model RightsAsset {
+  id              String   @id @default(uuid())
+  projectId       String
+  assetType       String    // legacy_archive, rights_holder, newsroom_curation
+  title           String
+  description     String?
+  sourceOrigin    String?
+  audienceAffinity String?
+  funnelState     String?   // inspiration, aspiration, immersion, conversion
+  format          String?
+  metadata        Json      @default("{}")
+  createdAt       DateTime  @default(now())
+
+  project ForecastProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("rights_assets")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONTENT PLAN — Schema v1.1
+// ─────────────────────────────────────────────────────────────
+
+model ContentPlan {
+  id                String    @id @default(uuid())
+  projectId         String
+  blueprintId       String?
+  version           Int       @default(1)
+  taxonomyVersion   String    @default("v1.1")
+  sprintCadence     String    @default("4-6 weeks")
+  status            String    @default("DRAFT")  // DRAFT, LOCKED, APPROVED
+  approvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project  ForecastProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stories  StoryUnit[]
+
+  @@index([projectId])
+  @@map("content_plans")
+}
+
+model StoryUnit {
+  id                        String   @id @default(uuid())
+  contentPlanId             String
+  storyId                   String    // SP-001
+  sprint                    String?
+  rightsPackage             String?
+  contentPlanVersion        String?
+  blueprintId               String?
+  targetAudienceId          String?
+  audienceLabel             String?
+  funnelStage               String    // Inspiration, Aspiration, Immersion, Conversion
+  estimatedReach            Int?
+  storyTheme                String?
+  atlasStoryType            String?   // One of Atlas 8
+  storyTreatment            String?   // Legacy genre: Profile, Moment, etc.
+  valueFrame                String?   // Belonging, Achievement, Identity, Insider Access
+  toneBand                  String?   // Authoritative, Empathetic, Wry, Cultural Translator
+  journalisticAvatar        String?
+  talentSignal              Boolean   @default(false)
+  talentId                  String?
+  sponsorPresence           Boolean   @default(false)
+  sponsorId                 String?
+  sponsorRatio              String?   // e.g. "90:10"
+  productionRoute           String?   // Legacy, Newsroom, Capture, Generative
+  sourceStream              String?   // RH Archive, Curation, Original Shoot, AI-Generated
+  sourceAssetId             String?
+  generativeSource          String?
+  generativeSourceType      String?   // asset_id, blueprint_insight, performance_signal
+  humanGateRequired         Boolean   @default(true)
+  masterFormatRequired      Boolean   @default(false)
+  primaryFormat             String?
+  formatVariantsRequired    Int       @default(1)
+  thumbStopperType          String?
+  headlinePersonalisation   Boolean   @default(false)
+  headlineVariantCount      Int?
+  publisherId               String?
+  publisherClusterId        String?
+  publisherCompatibility    Boolean   @default(false)
+  storyTarget               Int       @default(1)
+  funnelBlockAssignment     String?
+  sequencePriority          Int       @default(1)
+  evergreenFlag             String    @default("Evergreen")  // Evergreen, Seasonal, Event-triggered
+  status                    String    @default("Planned")    // Planned, Briefed, In Production, Delivered, Approved, Live, Archived, Deprecated, Superseded by Version
+  gapFlag                   Boolean   @default(false)
+  revisionTrigger           String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  contentPlan ContentPlan @relation(fields: [contentPlanId], references: [id], onDelete: Cascade)
+
+  @@index([contentPlanId])
+  @@map("story_units")
+}
+
+// ─────────────────────────────────────────────────────────────
+// PRODUCTION BRIEFS — PANIC documents, Wendy scripts, Capture/Newsroom briefs
+// ─────────────────────────────────────────────────────────────
+
+model ProductionBrief {
+  id              String    @id @default(uuid())
+  projectId       String
+  storyUnitId     String?
+  briefType       String    // PANIC, WENDY, CAPTURE_BRIEF, NEWSROOM_BRIEF
+  status          String    @default("DRAFT")  // DRAFT, REVIEW, APPROVED, IN_PRODUCTION
+  title           String
+  content         Json      // Structured brief content (PANIC fields, Wendy structure, etc.)
+  generatedBy     String    @default("ai")     // ai, manual
+  approvedAt      DateTime?
+  approvedBy      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project ForecastProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([briefType])
+  @@map("production_briefs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CREATIVE OVERVIEWS — Format treatments, series rationale, audience profiles
+// ─────────────────────────────────────────────────────────────
+
+model CreativeOverview {
+  id              String    @id @default(uuid())
+  projectId       String
+  formatName      String    // e.g. "City Circuits", "All Access Pass"
+  status          String    @default("DRAFT")  // DRAFT, REVIEW, APPROVED
+  seriesRationale String?
+  seriesSynopsis  String?
+  formatDescription String?
+  audienceProfile Json?     // { interests: [], demographics: {} }
+  partnershipContext String?
+  callToAction    String?
+  talentProfile   Json?     // { name, bio, relevance }
+  distributionNotes String?
+  content         Json      @default("{}") // Full structured overview
+  generatedBy     String    @default("ai")
+  approvedAt      DateTime?
+  approvedBy      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project ForecastProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("creative_overviews")
 }
 
 model WorkspaceInvite {
