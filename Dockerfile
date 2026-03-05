@@ -9,14 +9,14 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
 
-# Install dependencies
-RUN npm ci --no-audit --no-fund
+# Install dependencies (skip postinstall prisma generate, we do it separately)
+RUN npm install --no-audit --no-fund --ignore-scripts
 
 # Copy the rest of the app
 COPY . .
 
-# Generate Prisma client and build Next.js
-RUN npx prisma generate && npm run build
+# Generate Prisma client
+RUN npx prisma generate
 
 # Expose port
 EXPOSE 3000
@@ -24,5 +24,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Push schema and start
-CMD npx prisma db push --accept-data-loss && npm start
+# Push schema and start in dev mode (faster, no build step)
+CMD sh -c "npx prisma db push --skip-generate && npm run dev"
