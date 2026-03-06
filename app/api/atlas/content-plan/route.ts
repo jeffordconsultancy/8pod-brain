@@ -126,6 +126,7 @@ Generate the Content Plan Story Units as JSON array.`;
 
   try {
     if (clients.claude) {
+      console.log('[ContentPlan] Using Claude API...');
       const res = await clients.claude.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4000,
@@ -133,9 +134,17 @@ Generate the Content Plan Story Units as JSON array.`;
         messages: [{ role: 'user', content: userPrompt }],
       });
       const text = (res.content[0] as any).text;
+      console.log('[ContentPlan] Claude response length:', text?.length);
       const match = text.match(/\[[\s\S]*\]/);
-      if (match) storiesData = JSON.parse(match[0]);
+      if (match) {
+        storiesData = JSON.parse(match[0]);
+        console.log('[ContentPlan] Parsed', storiesData.length, 'stories from Claude');
+      } else {
+        console.log('[ContentPlan] Could not parse JSON array from Claude response, using fallback');
+        storiesData = generateFallbackStories(bp);
+      }
     } else if (clients.openai) {
+      console.log('[ContentPlan] Using OpenAI API...');
       const res = await clients.openai.chat.completions.create({
         model: 'gpt-4o',
         max_tokens: 4000,
@@ -146,14 +155,23 @@ Generate the Content Plan Story Units as JSON array.`;
       });
       const text = res.choices[0]?.message?.content || '';
       const match = text.match(/\[[\s\S]*\]/);
-      if (match) storiesData = JSON.parse(match[0]);
+      if (match) {
+        storiesData = JSON.parse(match[0]);
+        console.log('[ContentPlan] Parsed', storiesData.length, 'stories from OpenAI');
+      } else {
+        console.log('[ContentPlan] Could not parse JSON from OpenAI, using fallback');
+        storiesData = generateFallbackStories(bp);
+      }
     } else {
-      // Fallback: generate programmatically
+      console.log('[ContentPlan] No AI clients available, using fallback generator');
       storiesData = generateFallbackStories(bp);
     }
-  } catch (e) {
+  } catch (e: any) {
+    console.error('[ContentPlan] AI generation error:', e?.message || e);
     storiesData = generateFallbackStories(bp);
   }
+
+  console.log('[ContentPlan] Total stories to save:', storiesData.length);
 
   // Validate provenance ratio (Rule 3)
   const genCount = storiesData.filter(s => s.productionRoute === 'Generative').length;
@@ -182,46 +200,54 @@ Generate the Content Plan Story Units as JSON array.`;
   });
 
   // Save story units
-  for (const story of storiesData) {
-    await db.storyUnit.create({
-      data: {
-        contentPlanId: plan.id,
-        storyId: story.storyId || `SP-${String(storiesData.indexOf(story) + 1).padStart(3, '0')}`,
-        sprint: story.sprint || 'Sprint 1',
-        rightsPackage: story.rightsPackage || `${bp.rightsHolder} ${bp.market}`,
-        contentPlanVersion: 'v1',
-        blueprintId: `BPR-${project.id.slice(0, 8)}`,
-        targetAudienceId: story.targetAudienceId || `AUD-${String(storiesData.indexOf(story) % 5 + 1).padStart(2, '0')}`,
-        audienceLabel: story.audienceLabel || 'General Audience',
-        funnelStage: story.funnelStage || 'Inspiration',
-        estimatedReach: story.estimatedReach || 100000,
-        storyTheme: story.storyTheme || 'General',
-        atlasStoryType: story.atlasStoryType || ATLAS_8_STORY_TYPES[0],
-        storyTreatment: story.storyTreatment || 'Profile',
-        valueFrame: story.valueFrame || VALUE_FRAMES[0],
-        toneBand: story.toneBand || TONE_BANDS[0],
-        journalisticAvatar: story.journalisticAvatar || 'JA-1 Authoritative Voice',
-        talentSignal: story.talentSignal || false,
-        sponsorPresence: story.sponsorPresence || false,
-        sponsorRatio: story.sponsorRatio || null,
-        productionRoute: story.productionRoute || 'Newsroom',
-        sourceStream: story.sourceStream || 'Curation',
-        generativeSource: story.generativeSource || null,
-        generativeSourceType: story.generativeSourceType || null,
-        humanGateRequired: story.humanGateRequired ?? true,
-        primaryFormat: story.primaryFormat || 'Editorial',
-        formatVariantsRequired: story.formatVariantsRequired || 1,
-        thumbStopperType: story.thumbStopperType || 'TS-1 Curiosity Gap',
-        publisherId: story.publisherId || null,
-        publisherClusterId: story.publisherClusterId || null,
-        storyTarget: story.storyTarget || 1,
-        funnelBlockAssignment: story.funnelBlockAssignment || '',
-        sequencePriority: story.sequencePriority || 1,
-        evergreenFlag: story.evergreenFlag || 'Evergreen',
-        status: 'Planned',
-      },
-    });
+  let savedCount = 0;
+  for (let idx = 0; idx < storiesData.length; idx++) {
+    const story = storiesData[idx];
+    try {
+      await db.storyUnit.create({
+        data: {
+          contentPlanId: plan.id,
+          storyId: story.storyId || `SP-${String(idx + 1).padStart(3, '0')}`,
+          sprint: story.sprint || 'Sprint 1',
+          rightsPackage: story.rightsPackage || `${bp.rightsHolder} ${bp.market}`,
+          contentPlanVersion: 'v1',
+          blueprintId: `BPR-${project.id.slice(0, 8)}`,
+          targetAudienceId: story.targetAudienceId || `AUD-${String(idx % 5 + 1).padStart(2, '0')}`,
+          audienceLabel: story.audienceLabel || 'General Audience',
+          funnelStage: story.funnelStage || 'Inspiration',
+          estimatedReach: typeof story.estimatedReach === 'number' ? story.estimatedReach : 100000,
+          storyTheme: story.storyTheme || 'General',
+          atlasStoryType: story.atlasStoryType || ATLAS_8_STORY_TYPES[0],
+          storyTreatment: story.storyTreatment || 'Profile',
+          valueFrame: story.valueFrame || VALUE_FRAMES[0],
+          toneBand: story.toneBand || TONE_BANDS[0],
+          journalisticAvatar: story.journalisticAvatar || 'JA-1 Authoritative Voice',
+          talentSignal: !!story.talentSignal,
+          sponsorPresence: !!story.sponsorPresence,
+          sponsorRatio: story.sponsorRatio || null,
+          productionRoute: story.productionRoute || 'Newsroom',
+          sourceStream: story.sourceStream || 'Curation',
+          generativeSource: story.generativeSource || null,
+          generativeSourceType: story.generativeSourceType || null,
+          humanGateRequired: story.humanGateRequired ?? true,
+          primaryFormat: story.primaryFormat || 'Editorial',
+          formatVariantsRequired: typeof story.formatVariantsRequired === 'number' ? story.formatVariantsRequired : 1,
+          thumbStopperType: story.thumbStopperType || 'TS-1 Curiosity Gap',
+          publisherId: story.publisherId || null,
+          publisherClusterId: story.publisherClusterId || null,
+          storyTarget: typeof story.storyTarget === 'number' ? story.storyTarget : 1,
+          funnelBlockAssignment: story.funnelBlockAssignment || '',
+          sequencePriority: typeof story.sequencePriority === 'number' ? story.sequencePriority : 1,
+          evergreenFlag: story.evergreenFlag || 'Evergreen',
+          status: 'Planned',
+        },
+      });
+      savedCount++;
+    } catch (e: any) {
+      console.error(`[ContentPlan] Failed to save story ${idx + 1}:`, e?.message || e);
+    }
   }
+  console.log(`[ContentPlan] Saved ${savedCount}/${storiesData.length} story units`);
 
   // Update project status
   await db.forecastProject.update({
