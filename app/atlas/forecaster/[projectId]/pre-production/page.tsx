@@ -16,6 +16,18 @@ interface ProductionBrief {
   approvedAt: string | null;
 }
 
+// Helper to safely render values that might be objects/arrays
+function renderValue(val: any): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (Array.isArray(val)) return val.map(v => typeof v === 'object' ? JSON.stringify(v) : String(v)).join(', ');
+  if (typeof val === 'object') {
+    return Object.entries(val).map(([k, v]) => `${k}: ${Array.isArray(v) ? (v as any[]).join(', ') : v}`).join(' | ');
+  }
+  return String(val);
+}
+
 const BRIEF_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bgColor: string }> = {
   PANIC: { label: 'PANIC', icon: '◉', color: 'text-amber-400', bgColor: 'bg-amber-400/10 border-amber-400/20' },
   WENDY: { label: 'Wendy', icon: '◎', color: 'text-purple-400', bgColor: 'bg-purple-400/10 border-purple-400/20' },
@@ -316,7 +328,7 @@ export default function PreProductionPage() {
                         {content.synopsis && (
                           <div>
                             <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Synopsis</h5>
-                            <p className="text-text-primary text-sm">{content.synopsis}</p>
+                            <p className="text-text-primary text-sm">{renderValue(content.synopsis)}</p>
                           </div>
                         )}
                         {content.background && (
@@ -325,7 +337,7 @@ export default function PreProductionPage() {
                             <ul className="space-y-1">
                               {(Array.isArray(content.background) ? content.background : [content.background]).map((item: string, i: number) => (
                                 <li key={i} className="text-text-secondary text-xs flex gap-2">
-                                  <span className="text-text-dim">•</span>{item}
+                                  <span className="text-text-dim">•</span>{renderValue(item)}
                                 </li>
                               ))}
                             </ul>
@@ -335,25 +347,25 @@ export default function PreProductionPage() {
                           {content.angle && (
                             <div>
                               <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Angle</h5>
-                              <p className="text-text-secondary text-sm">{content.angle}</p>
+                              <p className="text-text-secondary text-sm">{renderValue(content.angle)}</p>
                             </div>
                           )}
                           {content.regionalNarrative && (
                             <div>
                               <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Regional Narrative</h5>
-                              <p className="text-text-secondary text-sm">{content.regionalNarrative}</p>
+                              <p className="text-text-secondary text-sm">{renderValue(content.regionalNarrative)}</p>
                             </div>
                           )}
                           {content.jeopardy && (
                             <div>
                               <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Jeopardy</h5>
-                              <p className="text-text-secondary text-sm">{content.jeopardy}</p>
+                              <p className="text-text-secondary text-sm">{renderValue(content.jeopardy)}</p>
                             </div>
                           )}
                           {content.desiredOutcome && (
                             <div>
                               <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Desired Outcome</h5>
-                              <p className="text-text-secondary text-sm">{content.desiredOutcome}</p>
+                              <p className="text-text-secondary text-sm">{renderValue(content.desiredOutcome)}</p>
                             </div>
                           )}
                         </div>
@@ -369,7 +381,7 @@ export default function PreProductionPage() {
                           ].map(field => content[field.key] ? (
                             <div key={field.key}>
                               <h6 className="text-xs font-bold text-text-primary">{field.label}</h6>
-                              <p className="text-text-secondary text-xs mt-0.5">{content[field.key]}</p>
+                              <p className="text-text-secondary text-xs mt-0.5">{renderValue(content[field.key])}</p>
                             </div>
                           ) : null)}
                         </div>
@@ -391,7 +403,7 @@ export default function PreProductionPage() {
                       <div className="space-y-4">
                         <div className="bg-purple-400/5 border border-purple-400/20 rounded-xl p-4">
                           <h5 className="text-xs font-mono text-purple-400 uppercase tracking-wide mb-2">Opening Statement</h5>
-                          <p className="text-text-primary text-sm italic">{content.openingStatement}</p>
+                          <p className="text-text-primary text-sm italic">{renderValue(content.openingStatement)}</p>
                         </div>
                         {content.supportingStatements?.length > 0 && (
                           <div>
@@ -399,7 +411,7 @@ export default function PreProductionPage() {
                             <ol className="space-y-1">
                               {content.supportingStatements.map((s: string, i: number) => (
                                 <li key={i} className="text-text-secondary text-xs flex gap-2">
-                                  <span className="text-text-dim font-mono">{i + 1}.</span>{s}
+                                  <span className="text-text-dim font-mono">{i + 1}.</span>{renderValue(s)}
                                 </li>
                               ))}
                             </ol>
@@ -408,14 +420,14 @@ export default function PreProductionPage() {
                         <div className="grid grid-cols-2 gap-4">
                           <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
                             <h5 className="text-xs font-mono text-red-400 uppercase tracking-wide mb-2">General Jeopardy</h5>
-                            <p className="text-text-primary text-sm italic">{content.generalJeopardyStatement}</p>
+                            <p className="text-text-primary text-sm italic">{renderValue(content.generalJeopardyStatement)}</p>
                             {content.specificJeopardyStatements?.length > 0 && (
                               <div className="mt-3">
                                 <h6 className="text-xs font-mono text-text-dim mb-1">Specific Jeopardy</h6>
                                 <ol className="space-y-1">
                                   {content.specificJeopardyStatements.map((s: string, i: number) => (
                                     <li key={i} className="text-text-muted text-xs flex gap-2">
-                                      <span className="text-text-dim font-mono">{i + 1}.</span>{s}
+                                      <span className="text-text-dim font-mono">{i + 1}.</span>{renderValue(s)}
                                     </li>
                                   ))}
                                 </ol>
@@ -424,14 +436,14 @@ export default function PreProductionPage() {
                           </div>
                           <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
                             <h5 className="text-xs font-mono text-green-400 uppercase tracking-wide mb-2">General Happy Ending</h5>
-                            <p className="text-text-primary text-sm italic">{content.generalHappyEndingStatement}</p>
+                            <p className="text-text-primary text-sm italic">{renderValue(content.generalHappyEndingStatement)}</p>
                             {content.specificHappyEndingStatements?.length > 0 && (
                               <div className="mt-3">
                                 <h6 className="text-xs font-mono text-text-dim mb-1">Specific Happy Ending</h6>
                                 <ol className="space-y-1">
                                   {content.specificHappyEndingStatements.map((s: string, i: number) => (
                                     <li key={i} className="text-text-muted text-xs flex gap-2">
-                                      <span className="text-text-dim font-mono">{i + 1}.</span>{s}
+                                      <span className="text-text-dim font-mono">{i + 1}.</span>{renderValue(s)}
                                     </li>
                                   ))}
                                 </ol>
@@ -445,7 +457,7 @@ export default function PreProductionPage() {
                             <ol className="space-y-1">
                               {content.questions.map((q: string, i: number) => (
                                 <li key={i} className="text-text-secondary text-xs flex gap-2">
-                                  <span className="text-text-dim font-mono">{i + 1}.</span>{q}
+                                  <span className="text-text-dim font-mono">{i + 1}.</span>{renderValue(q)}
                                 </li>
                               ))}
                             </ol>
@@ -461,44 +473,44 @@ export default function PreProductionPage() {
                           {content.editorialAngle && (
                             <div>
                               <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Editorial Angle</h5>
-                              <p className="text-text-secondary text-sm">{content.editorialAngle}</p>
+                              <p className="text-text-secondary text-sm">{renderValue(content.editorialAngle)}</p>
                             </div>
                           )}
                           {content.avatarVoice && (
                             <div>
                               <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Avatar Voice</h5>
-                              <p className="text-text-secondary text-sm">{content.avatarVoice}</p>
+                              <p className="text-text-secondary text-sm">{renderValue(content.avatarVoice)}</p>
                             </div>
                           )}
                           {content.sourceConstraints && (
                             <div>
                               <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Source Constraints</h5>
-                              <p className="text-text-secondary text-sm">{content.sourceConstraints}</p>
+                              <p className="text-text-secondary text-sm">{renderValue(content.sourceConstraints)}</p>
                             </div>
                           )}
                           {content.curationParameters && (
                             <div>
                               <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Curation Parameters</h5>
-                              <p className="text-text-secondary text-sm">{content.curationParameters}</p>
+                              <p className="text-text-secondary text-sm">{renderValue(content.curationParameters)}</p>
                             </div>
                           )}
                           {content.audienceContext && (
                             <div>
                               <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Audience Context</h5>
-                              <p className="text-text-secondary text-sm">{content.audienceContext}</p>
+                              <p className="text-text-secondary text-sm">{renderValue(content.audienceContext)}</p>
                             </div>
                           )}
                           {content.sponsorIntegration && (
                             <div>
                               <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Sponsor Integration</h5>
-                              <p className="text-text-secondary text-sm">{content.sponsorIntegration}</p>
+                              <p className="text-text-secondary text-sm">{renderValue(content.sponsorIntegration)}</p>
                             </div>
                           )}
                         </div>
                         {content.qualityGates && (
                           <div className="bg-console-surface border border-console-border rounded-xl p-4">
                             <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Quality Gates</h5>
-                            <p className="text-text-secondary text-xs">{content.qualityGates}</p>
+                            <p className="text-text-secondary text-xs">{renderValue(content.qualityGates)}</p>
                           </div>
                         )}
                       </div>
