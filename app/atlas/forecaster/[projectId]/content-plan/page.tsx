@@ -352,13 +352,13 @@ export default function ContentPlanPage() {
                 </thead>
                 <tbody>
                   {coverageMatrix.map((row, i) => {
-                    const total = FUNNEL_STAGES.reduce((sum, stage) => sum + (row[stage] as number || 0), 0);
-                    const hasGap = FUNNEL_STAGES.some(stage => (row[stage] as number || 0) === 0);
+                    const total = FUNNEL_STAGES.reduce((sum, stage) => sum + ((row as Record<string, any>)[stage] as number || 0), 0);
+                    const hasGap = FUNNEL_STAGES.some(stage => ((row as Record<string, any>)[stage] as number || 0) === 0);
                     return (
                       <tr key={i} className="border-b border-console-border/50 hover:bg-console-surface/50">
                         <td className="px-4 py-3 text-sm text-text-primary">{row.audience}</td>
                         {FUNNEL_STAGES.map(stage => {
-                          const count = row[stage] as number || 0;
+                          const count = (row as Record<string, any>)[stage] as number || 0;
                           return (
                             <td key={stage} className="text-center px-4 py-3">
                               <span className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold ${
