@@ -1,7 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getAIClients } from '@/lib/ai';
 import { getKnowledgeContext } from '@/lib/knowledge-context';
+
+function extractFromBrief(brief: string) {
+  const lower = brief.toLowerCase();
+
+  // Try to extract sponsor name
+  const sponsorPatterns = [
+    /(\w[\w\s]*?)\s+as\s+sponsor/i,
+    /sponsor[:\s]+(\w[\w\s&.]+)/i,
+    /sponsored\s+by\s+(\w[\w\s&.]+)/i,
+  ];
+  let sponsorName = 'Sponsor TBC';
+  for (const p of sponsorPatterns) {
+    const m = brief.match(p);
+    if (m) { sponsorName = m[1].trim(); break; }
+  }
+
+  // Try to extract rights holder
+  const rightsPatterns = [
+    /(\w[\w\s]*?)\s+as\s+rights?\s*holder/i,
+    /rights?\s*holder[:\s]+(\w[\w\s&.]+)/i,
+    /^(\w[\w\s]*?)\s+as\s+/im,
+  ];
+  let rightsHolder = 'Rights Holder TBC';
+  for (const p of rightsPatterns) {
+    const m = brief.match(p);
+    if (m) { rightsHolder = m[1].trim(); break; }
+  }
+
+  // If the brief mentions a known entity first, use it as rights holder
+  const knownEntities = ['F1', 'Formula 1', 'Premier League', 'UEFA', 'FIFA', 'NFL', 'NBA', 'MLB', 'NHL', 'Olympics', 'ICC', 'ATP', 'WTA'];
+  for (const entity of knownEntities) {
+    if (lower.includes(entity.toLowerCase())) {
+      rightsHolder = entity;
+      break;
+    }
+  }
+
+  // Budget
+  const budgetMatch = brief.match(/[£$€]\s*(\d[\d,.]*)\s*(k|m|million|thousand)?/i);
+  let budget = 'TBC';
+  if (budgetMatch) {
+    budget = budgetMatch[0];
+  }
+
+  // Objectives from brief
+  const objectiveKeywords = ['1st party data', 'first party data', 'data acquisition', 'brand awareness', 'conversion', 'engagement', 'reach', 'lead gen', 'hospitality', 'content', 'digital', 'social'];
+  const objectives = objectiveKeywords.filter(k => lower.includes(k)).map(k => k.charAt(0).toUpperCase() + k.slice(1));
+  if (objectives.length === 0) objectives.push('Brand visibility', 'Audience engagement', 'Commercial ROI');
+
+  return { sponsorName, rightsHolder, budget, objectives };
+}
+
+function generateFallbackBlueprint(brief: string): object {
+  const { sponsorName, rightsHolder, budget, objectives } = extractFromBrief(brief);
+
+  return {
+    sponsorName,
+    sponsorProfile: `${sponsorName} — sponsor partner seeking rights activation across ${rightsHolder} properties.`,
+    rightsHolder,
+    market: 'Global (primary: UK & Europe)',
+    objectives,
+    governingRules: [
+      'All content must comply with rights holder brand guidelines',
+      'Sponsor exclusivity within agreed category',
+      'Digital-first activation strategy required',
+      'Performance metrics to be agreed pre-activation',
+      `Budget envelope: ${budget}`,
+    ],
+    rightsPackage: [
+      'Title sponsorship of broadcast segments',
+      'LED perimeter board inventory',
+      'Social media co-branded content series',
+      'Hospitality and experiential activations',
+      'Data capture via owned digital platforms',
+      '1st party audience data rights',
+      'Rights to archive / legacy content clips',
+      'Newsroom editorial integration',
+    ],
+    audienceProfile: 'Sports-engaged audiences 18-45, high digital affinity, cross-platform consumption habits. Secondary: corporate hospitality and B2B decision-makers.',
+  };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,9 +94,15 @@ export async function POST(request: NextRequest) {
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     if (!project.sponsorBrief) return NextResponse.json({ error: 'No sponsor brief provided' }, { status: 400 });
 
-    const { claude, openai, preferredProvider } = await getAIClients(workspaceId);
+    // Try AI generation, fall back to smart extraction
+    let blueprint: any;
+    let usedAI = false;
 
-    const systemPrompt = `You are the 8pod Forecaster — a commercial intelligence engine for sports and entertainment sponsorship.
+    try {
+      const { getAIClients } = await import('@/lib/ai');
+      const { claude, openai, preferredProvider } = await getAIClients(workspaceId);
+
+      const systemPrompt = `You are the 8pod Forecaster — a commercial intelligence engine for sports and entertainment sponsorship.
 
 Given a natural language description of a sponsorship opportunity, generate a structured Rights Package Blueprint as JSON.
 
@@ -32,47 +118,53 @@ Return ONLY valid JSON with this structure:
   "audienceProfile": "Description of target audience"
 }
 
-You also have access to the team's connected data (emails, calendar events, documents). Use any relevant information from this context to make the blueprint more specific and grounded in real relationships and conversations.
-
 Be specific, commercial, and practical. Draw on your knowledge of sports sponsorship, media rights, and brand partnerships.`;
 
-    // Fetch knowledge context from the combined team pool
-    const knowledgeContext = await getKnowledgeContext(workspaceId, project.sponsorBrief);
-    const userContent = knowledgeContext
-      ? `${project.sponsorBrief}\n\nTeam knowledge context:\n${knowledgeContext}`
-      : project.sponsorBrief;
+      let knowledgeContext = '';
+      try {
+        knowledgeContext = await getKnowledgeContext(workspaceId, project.sponsorBrief) || '';
+      } catch { /* ignore knowledge fetch errors */ }
 
-    let responseText: string;
+      const userContent = knowledgeContext
+        ? `${project.sponsorBrief}\n\nTeam knowledge context:\n${knowledgeContext}`
+        : project.sponsorBrief;
 
-    if (preferredProvider === 'anthropic' && claude) {
-      const msg = await claude.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userContent }],
-      });
-      responseText = msg.content[0].type === 'text' ? msg.content[0].text : '{}';
-    } else if (openai) {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        max_tokens: 2000,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent },
-        ],
-      });
-      responseText = completion.choices[0]?.message?.content || '{}';
-    } else {
-      return NextResponse.json({ error: 'No AI provider available. Add an API key in Brain > Settings.' }, { status: 400 });
+      let responseText: string = '';
+
+      if (preferredProvider === 'anthropic' && claude) {
+        const msg = await claude.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userContent }],
+        });
+        responseText = msg.content[0].type === 'text' ? msg.content[0].text : '';
+      } else if (openai) {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          max_tokens: 2000,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userContent },
+          ],
+        });
+        responseText = completion.choices[0]?.message?.content || '';
+      }
+
+      if (responseText) {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          blueprint = JSON.parse(jsonMatch[0]);
+          usedAI = true;
+        }
+      }
+    } catch (aiError) {
+      console.log('AI generation unavailable, using fallback:', (aiError as any)?.message);
     }
 
-    // Parse JSON from response
-    let blueprint;
-    try {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      blueprint = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
-    } catch {
-      blueprint = { raw: responseText };
+    // Fallback if AI didn't work
+    if (!blueprint) {
+      blueprint = generateFallbackBlueprint(project.sponsorBrief);
     }
 
     // Update project
@@ -90,7 +182,7 @@ Be specific, commercial, and practical. Draw on your knowledge of sports sponsor
       },
     });
 
-    return NextResponse.json({ project: updated, blueprint });
+    return NextResponse.json({ project: updated, blueprint, usedAI });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || 'Blueprint generation failed' }, { status: 500 });
   }

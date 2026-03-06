@@ -5,7 +5,7 @@ import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function NewForecast() {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const router = useRouter();
   const [brief, setBrief] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,51 +13,27 @@ export default function NewForecast() {
 
   const workspaceId = (session as any)?.workspaceId;
 
-  if (status === 'loading') {
-    return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-gray-400">Loading...</p></div>;
-  }
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!brief.trim() || !workspaceId) return;
-
     setLoading(true);
     setError('');
 
     try {
-      // Create project
       const res = await fetch('/api/forecaster/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, sponsorBrief: brief }),
+        body: JSON.stringify({ sponsorBrief: brief.trim(), workspaceId }),
       });
-
       if (!res.ok) {
         const data = await res.json();
         setError(data.error || 'Failed to create project');
         return;
       }
-
-      const { project } = await res.json();
-
-      // Generate blueprint
-      const bpRes = await fetch('/api/forecaster/generate-blueprint', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: project.id, workspaceId }),
-      });
-
-      if (!bpRes.ok) {
-        const data = await bpRes.json();
-        setError(data.error || 'Blueprint generation failed');
-        // Still redirect to project page
-        router.push(`/atlas/forecaster/${project.id}`);
-        return;
-      }
-
-      router.push(`/atlas/forecaster/${project.id}`);
-    } catch (err) {
-      setError('An error occurred');
+      const data = await res.json();
+      router.push(`/atlas/forecaster/${data.project.id}`);
+    } catch {
+      setError('Failed to create forecast project');
     } finally {
       setLoading(false);
     }
@@ -66,52 +42,47 @@ export default function NewForecast() {
   return (
     <div className="p-8 max-w-3xl mx-auto space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2">New Forecast</h1>
-        <p className="text-gray-400">Phase 1: Describe the sponsorship landscape. Tell us about the sponsor, rights holder, market, and objectives in your own words.</p>
+        <h1 className="text-3xl font-bold text-text-primary mb-2">New Forecast</h1>
+        <p className="text-text-secondary">Describe the sponsorship landscape or rights package opportunity. The Forecaster will generate a commercial blueprint.</p>
       </div>
-
-      {error && (
-        <div className="bg-red-900/30 border border-red-700 text-red-200 px-4 py-3 rounded-lg">
-          {error}
-          {error.includes('API key') && (
-            <span className="block mt-1 text-xs text-red-300">
-              Go to <a href="/brain/settings" className="underline">Brain &gt; Settings</a> to add your Anthropic API key.
-            </span>
-          )}
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-3">Describe the client&apos;s world</label>
+          <label className="text-xs font-mono text-text-dim uppercase tracking-wide mb-2 block">Sponsor Brief</label>
           <textarea
             value={brief}
             onChange={(e) => setBrief(e.target.value)}
-            className="w-full px-5 py-4 bg-gray-900 border border-gray-800 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-gray-600 transition resize-none"
-            placeholder={"Example: Nike is looking to expand their NBA sponsorship package in the US market. They want to increase brand visibility among Gen Z audiences, drive merchandise sales, and strengthen their association with basketball culture. The rights holder is the NBA. Key objectives include courtside branding, digital engagement, and athlete partnerships."}
-            rows={8}
-            required
+            rows={10}
+            className="w-full px-5 py-4 bg-console-surface border border-console-border rounded-xl text-text-primary placeholder-text-muted focus:outline-none focus:border-accent-teal/30 focus:shadow-glow-teal transition resize-none"
+            placeholder="Describe the sponsor, rights holder, market, target audiences, commercial objectives, and any specific requirements..."
+            autoFocus
           />
-          <p className="text-xs text-gray-500 mt-2">{brief.length} characters</p>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-300 mb-2">What to include:</h3>
-          <ul className="text-sm text-gray-500 space-y-1">
-            <li>Sponsor name and background</li>
-            <li>Rights holder (league, team, event, etc.)</li>
-            <li>Target market and geography</li>
-            <li>Commercial objectives and goals</li>
-            <li>Any specific rights or assets of interest</li>
-          </ul>
+        <div className="console-card p-4">
+          <h4 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-2">What to include</h4>
+          <div className="grid grid-cols-2 gap-2 text-sm text-text-muted">
+            <span>• Sponsor name and profile</span>
+            <span>• Rights holder / property</span>
+            <span>• Target market / geography</span>
+            <span>• Audience segments</span>
+            <span>• Commercial objectives</span>
+            <span>• Budget range (if known)</span>
+            <span>• Content formats of interest</span>
+            <span>• Competitive context</span>
+          </div>
         </div>
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">{error}</div>
+        )}
 
         <button
           type="submit"
           disabled={loading || !brief.trim()}
-          className="w-full py-4 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition disabled:opacity-50 text-lg"
+          className="w-full py-4 bg-accent-teal/20 text-accent-teal font-medium rounded-xl hover:bg-accent-teal/30 border border-accent-teal/30 transition disabled:opacity-50 text-lg"
         >
-          {loading ? 'Generating Blueprint...' : 'Generate Rights Package Blueprint'}
+          {loading ? 'Generating Blueprint...' : 'Launch Forecaster'}
         </button>
       </form>
     </div>

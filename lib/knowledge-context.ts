@@ -1,8 +1,12 @@
 import { db } from './db';
 
 /**
- * Fetches relevant knowledge records from the full workspace pool (no scope filter)
+ * Fetches relevant knowledge records from the full workspace pool
  * and returns a formatted context string for AI prompts.
+ *
+ * CONFIDENTIALITY RULE: Records marked as confidential are ALWAYS excluded
+ * from shared context. They never leak into Forecaster, Validator, Content Plan,
+ * or any shared brain queries.
  */
 export async function getKnowledgeContext(
   workspaceId: string,
@@ -10,7 +14,10 @@ export async function getKnowledgeContext(
   maxRecords: number = 30,
 ): Promise<string> {
   const allRecords = await db.knowledgeRecord.findMany({
-    where: { workspaceId },
+    where: {
+      workspaceId,
+      isConfidential: false, // Always exclude confidential records from AI context
+    },
     orderBy: { createdAt: 'desc' },
     take: 200,
     include: {

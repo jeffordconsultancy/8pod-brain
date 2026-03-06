@@ -17,14 +17,10 @@ export async function getAIClients(workspaceId: string) {
     ? decryptToken(workspace.openaiApiKey)
     : process.env.OPENAI_API_KEY;
 
-  // At least one AI provider is required
-  if (!anthropicKey && !openaiKey) {
-    throw new Error('No AI API key configured. Go to Settings to add your Anthropic or OpenAI key.');
-  }
-
   return {
     claude: anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : null,
     openai: openaiKey ? new OpenAI({ apiKey: openaiKey }) : null,
-    preferredProvider: anthropicKey ? 'anthropic' : 'openai',
+    preferredProvider: anthropicKey ? 'anthropic' : openaiKey ? 'openai' : 'none',
+    hasAI: !!(anthropicKey || openaiKey),
   };
 }

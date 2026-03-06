@@ -11,26 +11,26 @@ export default function ScopeToggle({
   scope,
   onToggle,
   mineLabel = 'My Brain',
-  teamLabel = 'Team Brain',
+  teamLabel = 'Shared Brain',
 }: ScopeToggleProps) {
   return (
-    <div className="flex items-center gap-1 rounded-lg bg-gray-800 p-1">
+    <div className="flex items-center gap-1 rounded-lg bg-console-surface p-1 border border-console-border">
       <button
         onClick={() => onToggle('mine')}
-        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+        className={`rounded-md px-3 py-1.5 text-sm font-mono transition-colors ${
           scope === 'mine'
-            ? 'bg-white text-black'
-            : 'text-gray-400 hover:text-white'
+            ? 'bg-accent-teal/10 text-accent-teal border border-accent-teal/20'
+            : 'text-text-muted hover:text-text-secondary'
         }`}
       >
         {mineLabel}
       </button>
       <button
         onClick={() => onToggle('team')}
-        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+        className={`rounded-md px-3 py-1.5 text-sm font-mono transition-colors ${
           scope === 'team'
-            ? 'bg-white text-black'
-            : 'text-gray-400 hover:text-white'
+            ? 'bg-accent-teal/10 text-accent-teal border border-accent-teal/20'
+            : 'text-text-muted hover:text-text-secondary'
         }`}
       >
         {teamLabel}

@@ -1,7 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-  @apply bg-gray-950 text-gray-100;
+  @apply bg-console-bg text-text-primary;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Console card glow effect */
+.console-card {
+  @apply bg-console-card border border-console-border rounded-xl transition-all duration-200;
+}
+.console-card:hover {
+  @apply border-console-border-hover shadow-glow-teal;
+}
+.console-card-active {
+  @apply border-accent-teal shadow-glow-teal-lg;
+}
+
+/* Status dot pulse */
+.status-dot {
+  @apply w-2 h-2 rounded-full bg-accent-teal animate-pulse-dot;
+}
+
+/* Monospace chip styling */
+.action-chip {
+  @apply font-mono text-sm px-4 py-2 border border-console-border rounded-lg text-text-secondary hover:border-accent-teal hover:text-accent-teal transition-all cursor-pointer;
+}
+
+/* Phase indicator */
+.phase-active {
+  @apply text-accent-teal border-accent-teal;
+}
+.phase-complete {
+  @apply text-accent-teal opacity-70;
+}
+.phase-locked {
+  @apply text-text-dim border-console-border opacity-50;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-console-bg;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-console-muted rounded-full;
+}
+
+/* Pass/Fail badges */
+.badge-pass {
+  @apply bg-accent-teal/10 text-accent-teal border border-accent-teal/30;
+}
+.badge-fail {
+  @apply bg-red-500/10 text-red-400 border border-red-500/30;
+}
+.badge-pending {
+  @apply bg-yellow-500/10 text-yellow-400 border border-yellow-500/30;
 }
