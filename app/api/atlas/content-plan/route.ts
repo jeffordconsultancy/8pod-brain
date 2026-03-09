@@ -17,7 +17,8 @@ const ATLAS_8_STORY_TYPES = [
 const VALUE_FRAMES = ['Belonging', 'Achievement', 'Identity', 'Insider Access'];
 const TONE_BANDS = ['Authoritative', 'Empathetic', 'Wry', 'Cultural Translator'];
 const FUNNEL_STAGES = ['Inspiration', 'Aspiration', 'Immersion', 'Conversion'];
-const PRODUCTION_ROUTES = ['Legacy', 'Newsroom', 'Capture', 'Generative'];
+const ASSEMBLY_METHODS = ['Newsroom', 'Generative'];
+const ASSET_SOURCES = ['OriginalCapture', 'RightsHolderArchive', 'Curated', 'Sponsor', 'GenerativeAI'];
 
 // GET: Load content plan
 export async function GET(req: NextRequest) {
@@ -57,13 +58,20 @@ export async function POST(req: NextRequest) {
 
   const systemPrompt = `You are the 8pod Content Plan Generator — a system that creates production instruction sets from validated blueprints.
 
+ARCHITECTURE MODEL — understand this before generating:
+- CAPTURE is an upstream production STAGE that produces reusable ASSETS (video, photo), NOT a story assembly method.
+- STORY ASSEMBLY is how finished Story Units are built. There are only 2 assembly methods: Newsroom and Generative.
+- ASSET SOURCES describe where the assets come from: OriginalCapture, RightsHolderArchive, Curated, Sponsor, or GenerativeAI.
+- A story may need original asset capture (captureRequired=true) but still be assembled via Newsroom or Generative methods.
+- Key principle: Capture produces assets. Newsroom/Generative assemble stories.
+
 You must generate Story Units following these GOVERNING RULES:
 1. VALIDATION GATE: All validation checkpoints must be PASS (assumed true).
-2. FUNNEL COMPLETENESS: Every semantic audience MUST have at minimum one Story Unit at each of the 4 funnel stages (Inspiration, Aspiration, Immersion, Conversion).
-3. PROVENANCE RATIO: Generative Story Units must not exceed 80% of total plan.
+2. FUNNEL COMPLETENESS: Every semantic audience MUST have at minimum one Story Unit at each of the 4 funnel stages.
+3. PROVENANCE RATIO: Generative-assembled Story Units must not exceed 80% of total plan.
 4. PRE-CONTENT PLAN: This is a complete draft before production begins.
-5. SINGLE AUDIENCE: One Story Unit = one semantic audience at one funnel stage. No multi-audience units.
-6. AUTHORISED ROUTES ONLY: Production routes limited to: Legacy, Newsroom, Capture, Generative.
+5. SINGLE AUDIENCE: One Story Unit = one semantic audience at one funnel stage.
+6. ASSEMBLY METHODS: Only Newsroom or Generative. Capture is NOT an assembly method.
 7. TAXONOMY GOVERNANCE: All enumerated fields use closed, versioned taxonomies.
 
 Atlas 8 Story Types (closed taxonomy — use ONLY these):
@@ -72,7 +80,8 @@ ${ATLAS_8_STORY_TYPES.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 Value Frames: ${VALUE_FRAMES.join(', ')}
 Tone Bands: ${TONE_BANDS.join(', ')}
 Funnel Stages: ${FUNNEL_STAGES.join(', ')}
-Production Routes: ${PRODUCTION_ROUTES.join(', ')}
+Assembly Methods: ${ASSEMBLY_METHODS.join(', ')}
+Asset Sources: ${ASSET_SOURCES.join(', ')}
 
 For each Story Unit, generate ALL these fields:
 - storyId (format: SP-001, SP-002, etc.)
@@ -91,10 +100,11 @@ For each Story Unit, generate ALL these fields:
 - talentSignal (true/false)
 - sponsorPresence (true/false)
 - sponsorRatio (e.g., "90:10" for Inspiration, "30:70" for mid-funnel, "10:90" for Conversion)
-- productionRoute (one of 4)
-- sourceStream (RH Archive / Curation / Original Shoot / AI-Generated)
-- generativeSourceType (asset_id / blueprint_insight / performance_signal — only if Generative)
-- humanGateRequired (true for Capture and Generative)
+- assemblyMethod (Newsroom or Generative — how the story is ASSEMBLED)
+- assetSource (OriginalCapture / RightsHolderArchive / Curated / Sponsor / GenerativeAI — where assets come FROM)
+- captureRequired (true if the story needs original asset capture before assembly)
+- generativeSourceType (asset_id / blueprint_insight / performance_signal — only if assemblyMethod is Generative)
+- humanGateRequired (true for stories with captureRequired=true or assemblyMethod=Generative)
 - primaryFormat (Video / Editorial / Interactive / Photo)
 - formatVariantsRequired (1-4)
 - thumbStopperType (e.g., TS-1 Curiosity Gap, TS-2 Tribal Signal, TS-3 Shock Stat)
@@ -103,6 +113,13 @@ For each Story Unit, generate ALL these fields:
 - funnelBlockAssignment (e.g., Block 1 - Inspiration Open, Block 3 - Aspiration Sponsor)
 - sequencePriority (1-10)
 - evergreenFlag (Evergreen / Seasonal / Event-triggered)
+
+Guidelines for assembly and asset decisions:
+- Tentpole stories (behind-the-scenes, interviews, docu-style) typically need captureRequired=true with assemblyMethod=Newsroom
+- Stories using legacy/archive footage use assetSource=RightsHolderArchive with captureRequired=false
+- Curated editorial stories use assetSource=Curated with assemblyMethod=Newsroom
+- AI-scaled stories use assemblyMethod=Generative with assetSource=GenerativeAI
+- Aim for ~30-40% of stories to require original capture, ~20-30% from archives, remainder curated/generative
 
 Generate 15-20 Story Units ensuring complete funnel coverage for at least 4 audiences.
 Return ONLY a JSON array, no other text.`;
@@ -173,16 +190,15 @@ Generate the Content Plan Story Units as JSON array.`;
 
   console.log('[ContentPlan] Total stories to save:', storiesData.length);
 
-  // Validate provenance ratio (Rule 3)
-  const genCount = storiesData.filter(s => s.productionRoute === 'Generative').length;
+  // Validate provenance ratio (Rule 3): Generative assembly must not exceed 80%
+  const genCount = storiesData.filter(s => s.assemblyMethod === 'Generative').length;
   if (storiesData.length > 0 && (genCount / storiesData.length) > 0.8) {
-    // Rebalance by converting some Generative to other routes
     let excess = genCount - Math.floor(storiesData.length * 0.8);
     for (const story of storiesData) {
       if (excess <= 0) break;
-      if (story.productionRoute === 'Generative') {
-        story.productionRoute = 'Newsroom';
-        story.sourceStream = 'Curation';
+      if (story.assemblyMethod === 'Generative') {
+        story.assemblyMethod = 'Newsroom';
+        story.assetSource = 'Curated';
         excess--;
       }
     }
@@ -194,7 +210,7 @@ Generate the Content Plan Story Units as JSON array.`;
       projectId,
       blueprintId: `BPR-${project.id.slice(0, 8)}`,
       version: 1,
-      taxonomyVersion: 'v1.1',
+      taxonomyVersion: 'v1.2',
       status: 'DRAFT',
     },
   });
@@ -210,7 +226,7 @@ Generate the Content Plan Story Units as JSON array.`;
           storyId: story.storyId || `SP-${String(idx + 1).padStart(3, '0')}`,
           sprint: story.sprint || 'Sprint 1',
           rightsPackage: story.rightsPackage || `${bp.rightsHolder} ${bp.market}`,
-          contentPlanVersion: 'v1',
+          contentPlanVersion: 'v1.2',
           blueprintId: `BPR-${project.id.slice(0, 8)}`,
           targetAudienceId: story.targetAudienceId || `AUD-${String(idx % 5 + 1).padStart(2, '0')}`,
           audienceLabel: story.audienceLabel || 'General Audience',
@@ -225,11 +241,12 @@ Generate the Content Plan Story Units as JSON array.`;
           talentSignal: !!story.talentSignal,
           sponsorPresence: !!story.sponsorPresence,
           sponsorRatio: story.sponsorRatio || null,
-          productionRoute: story.productionRoute || 'Newsroom',
-          sourceStream: story.sourceStream || 'Curation',
+          assemblyMethod: story.assemblyMethod || 'Newsroom',
+          assetSource: story.assetSource || 'Curated',
+          captureRequired: !!story.captureRequired,
           generativeSource: story.generativeSource || null,
           generativeSourceType: story.generativeSourceType || null,
-          humanGateRequired: story.humanGateRequired ?? true,
+          humanGateRequired: story.humanGateRequired ?? (story.captureRequired || story.assemblyMethod === 'Generative'),
           primaryFormat: story.primaryFormat || 'Editorial',
           formatVariantsRequired: typeof story.formatVariantsRequired === 'number' ? story.formatVariantsRequired : 1,
           thumbStopperType: story.thumbStopperType || 'TS-1 Curiosity Gap',
@@ -263,11 +280,19 @@ function generateFallbackStories(bp: any): any[] {
   const stories: any[] = [];
   let idx = 1;
 
+  // Asset source / assembly patterns for variety
+  const patterns = [
+    { assemblyMethod: 'Newsroom', assetSource: 'OriginalCapture', captureRequired: true },    // tentpole capture stories
+    { assemblyMethod: 'Newsroom', assetSource: 'RightsHolderArchive', captureRequired: false }, // legacy archive stories
+    { assemblyMethod: 'Newsroom', assetSource: 'Curated', captureRequired: false },             // editorial curation
+    { assemblyMethod: 'Generative', assetSource: 'GenerativeAI', captureRequired: false },      // AI-assembled
+  ];
+
   for (const aud of audiences) {
     for (const stage of FUNNEL_STAGES) {
       const storyCount = stage === 'Inspiration' ? 2 : 1;
       for (let i = 0; i < storyCount; i++) {
-        const route = PRODUCTION_ROUTES[idx % 4];
+        const pattern = patterns[idx % patterns.length];
         stories.push({
           storyId: `SP-${String(idx).padStart(3, '0')}`,
           sprint: idx <= 10 ? 'Sprint 1' : 'Sprint 2',
@@ -282,13 +307,14 @@ function generateFallbackStories(bp: any): any[] {
           valueFrame: VALUE_FRAMES[idx % 4],
           toneBand: TONE_BANDS[idx % 4],
           journalisticAvatar: `JA-${(idx % 4) + 1} ${TONE_BANDS[idx % 4]} Voice`,
-          talentSignal: route === 'Capture',
+          talentSignal: pattern.captureRequired,
           sponsorPresence: stage !== 'Inspiration' || idx % 3 === 0,
           sponsorRatio: stage === 'Inspiration' ? '90:10' : stage === 'Conversion' ? '10:90' : '30:70',
-          productionRoute: route,
-          sourceStream: route === 'Legacy' ? 'RH Archive' : route === 'Newsroom' ? 'Curation' : route === 'Capture' ? 'Original Shoot' : 'AI-Generated',
-          generativeSourceType: route === 'Generative' ? 'blueprint_insight' : null,
-          humanGateRequired: route === 'Capture' || route === 'Generative',
+          assemblyMethod: pattern.assemblyMethod,
+          assetSource: pattern.assetSource,
+          captureRequired: pattern.captureRequired,
+          generativeSourceType: pattern.assemblyMethod === 'Generative' ? 'blueprint_insight' : null,
+          humanGateRequired: pattern.captureRequired || pattern.assemblyMethod === 'Generative',
           primaryFormat: ['Video', 'Editorial', 'Interactive', 'Photo'][idx % 4],
           formatVariantsRequired: stage === 'Conversion' ? 3 : 1,
           thumbStopperType: [`TS-1 Curiosity Gap`, `TS-2 Tribal Signal`, `TS-3 Shock Stat`, `TS-4 Celebrity Hook`][idx % 4],

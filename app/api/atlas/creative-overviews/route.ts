@@ -53,10 +53,10 @@ export async function POST(req: NextRequest) {
     ? [...new Set(contentPlan.stories.map((s: any) => s.primaryFormat).filter(Boolean))]
     : ['Video', 'Editorial', 'Interactive'];
 
-  // Identify distinct production routes
-  const routes = contentPlan
-    ? [...new Set(contentPlan.stories.map((s: any) => s.productionRoute).filter(Boolean))]
-    : ['Capture', 'Newsroom', 'Generative'];
+  // Identify distinct assembly methods
+  const assemblyMethods = contentPlan
+    ? [...new Set(contentPlan.stories.map((s: any) => s.assemblyMethod).filter(Boolean))]
+    : ['Newsroom', 'Generative'];
 
   // Group story units by story type for format identification
   const storyTypeGroups = contentPlan
@@ -105,7 +105,7 @@ Rights Package: ${(bp.rightsPackage || []).join(', ')}
 Content Plan Context:
 - ${contentPlan?.stories?.length || 0} story units across ${audiences.length} audiences
 - Formats in use: ${formats.join(', ')}
-- Production routes: ${routes.join(', ')}
+- Assembly methods: ${assemblyMethods.join(', ')}
 - Story types: ${Object.keys(storyTypeGroups).join(', ')}
 - Audiences: ${audiences.join(', ')}
 

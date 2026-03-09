@@ -23,8 +23,9 @@ interface StoryUnit {
   talentSignal: boolean;
   sponsorPresence: boolean;
   sponsorRatio: string;
-  productionRoute: string;
-  sourceStream: string;
+  assemblyMethod: string;
+  assetSource: string;
+  captureRequired: boolean;
   generativeSourceType: string;
   humanGateRequired: boolean;
   primaryFormat: string;
@@ -54,11 +55,23 @@ const FUNNEL_COLORS: Record<string, string> = {
   Immersion: 'bg-amber-400/10 text-amber-400 border-amber-400/20',
   Conversion: 'bg-green-400/10 text-green-400 border-green-400/20',
 };
-const ROUTE_COLORS: Record<string, string> = {
-  Legacy: 'text-amber-400',
+const ASSEMBLY_COLORS: Record<string, string> = {
   Newsroom: 'text-blue-400',
-  Capture: 'text-purple-400',
   Generative: 'text-cyan-400',
+};
+const ASSET_SOURCE_LABELS: Record<string, string> = {
+  OriginalCapture: 'Original Capture',
+  RightsHolderArchive: 'RH Archive',
+  Curated: 'Curated',
+  Sponsor: 'Sponsor',
+  GenerativeAI: 'Generative AI',
+};
+const ASSET_SOURCE_COLORS: Record<string, string> = {
+  OriginalCapture: 'text-purple-400',
+  RightsHolderArchive: 'text-amber-400',
+  Curated: 'text-blue-300',
+  Sponsor: 'text-green-400',
+  GenerativeAI: 'text-cyan-300',
 };
 
 export default function ContentPlanPage() {
@@ -140,8 +153,9 @@ export default function ContentPlanPage() {
 
   // Stats
   const totalStories = stories.length;
-  const generativeCount = stories.filter(s => s.productionRoute === 'Generative').length;
-  const generativeRatio = totalStories > 0 ? ((generativeCount / totalStories) * 100).toFixed(0) : '0';
+  const newsroomCount = stories.filter(s => s.assemblyMethod === 'Newsroom').length;
+  const generativeCount = stories.filter(s => s.assemblyMethod === 'Generative').length;
+  const captureCount = stories.filter(s => s.captureRequired).length;
   const sponsoredCount = stories.filter(s => s.sponsorPresence).length;
 
   const phases = [
@@ -193,7 +207,7 @@ export default function ContentPlanPage() {
       {plan && (
         <>
           {/* Summary Stats */}
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-6 gap-3">
             <div className="console-card p-4 text-center">
               <span className="text-2xl font-bold text-accent-teal">{totalStories}</span>
               <p className="text-xs font-mono text-text-dim mt-1">Story Units</p>
@@ -203,14 +217,16 @@ export default function ContentPlanPage() {
               <p className="text-xs font-mono text-text-dim mt-1">Audiences</p>
             </div>
             <div className="console-card p-4 text-center">
-              <span className={`text-2xl font-bold ${parseInt(generativeRatio) > 80 ? 'text-red-400' : 'text-text-primary'}`}>
-                {generativeRatio}%
-              </span>
-              <p className="text-xs font-mono text-text-dim mt-1">Generative Ratio</p>
+              <span className="text-2xl font-bold text-blue-400">{newsroomCount}</span>
+              <p className="text-xs font-mono text-text-dim mt-1">Newsroom</p>
             </div>
             <div className="console-card p-4 text-center">
-              <span className="text-2xl font-bold text-text-primary">{sponsoredCount}</span>
-              <p className="text-xs font-mono text-text-dim mt-1">Sponsored</p>
+              <span className="text-2xl font-bold text-cyan-400">{generativeCount}</span>
+              <p className="text-xs font-mono text-text-dim mt-1">Generative</p>
+            </div>
+            <div className="console-card p-4 text-center">
+              <span className="text-2xl font-bold text-amber-400">{captureCount}</span>
+              <p className="text-xs font-mono text-text-dim mt-1">Capture Req.</p>
             </div>
             <div className="console-card p-4 text-center">
               <span className="text-2xl font-bold text-accent-teal">v{plan.version}</span>
@@ -244,10 +260,10 @@ export default function ContentPlanPage() {
                 <span className="col-span-2">Audience</span>
                 <span className="col-span-1">Funnel</span>
                 <span className="col-span-2">Theme</span>
-                <span className="col-span-2">Story Type</span>
-                <span className="col-span-1">Route</span>
+                <span className="col-span-1">Assembly</span>
+                <span className="col-span-2">Asset Source</span>
                 <span className="col-span-1">Format</span>
-                <span className="col-span-1">Sponsor</span>
+                <span className="col-span-1">Capture</span>
                 <span className="col-span-1">Status</span>
               </div>
 
@@ -266,12 +282,18 @@ export default function ContentPlanPage() {
                         </span>
                       </span>
                       <span className="col-span-2 text-text-secondary text-xs truncate">{story.storyTheme}</span>
-                      <span className="col-span-2 text-text-muted text-xs truncate">{story.atlasStoryType}</span>
-                      <span className={`col-span-1 text-xs font-mono ${ROUTE_COLORS[story.productionRoute] || 'text-text-muted'}`}>
-                        {story.productionRoute}
+                      <span className={`col-span-1 text-xs font-mono ${ASSEMBLY_COLORS[story.assemblyMethod] || 'text-text-muted'}`}>
+                        {story.assemblyMethod}
+                      </span>
+                      <span className={`col-span-2 text-xs font-mono ${ASSET_SOURCE_COLORS[story.assetSource] || 'text-text-muted'}`}>
+                        {ASSET_SOURCE_LABELS[story.assetSource] || story.assetSource}
                       </span>
                       <span className="col-span-1 text-text-muted text-xs truncate">{story.primaryFormat}</span>
-                      <span className="col-span-1 text-xs">{story.sponsorPresence ? '✓' : '—'}</span>
+                      <span className="col-span-1 text-xs">
+                        {story.captureRequired ? (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/20 font-mono">CAP</span>
+                        ) : '—'}
+                      </span>
                       <span className="col-span-1">
                         <span className="text-xs font-mono badge-pending px-1.5 py-0.5 rounded">{story.status}</span>
                       </span>
@@ -293,6 +315,10 @@ export default function ContentPlanPage() {
                         <p className="text-text-primary mt-0.5">{story.journalisticAvatar}</p>
                       </div>
                       <div>
+                        <span className="text-text-dim font-mono">Story Type</span>
+                        <p className="text-text-primary mt-0.5">{story.atlasStoryType}</p>
+                      </div>
+                      <div>
                         <span className="text-text-dim font-mono">Treatment</span>
                         <p className="text-text-primary mt-0.5">{story.storyTreatment}</p>
                       </div>
@@ -305,12 +331,14 @@ export default function ContentPlanPage() {
                         <p className="text-text-primary mt-0.5">{story.estimatedReach?.toLocaleString()}</p>
                       </div>
                       <div>
-                        <span className="text-text-dim font-mono">Format Variants</span>
-                        <p className="text-text-primary mt-0.5">{story.formatVariantsRequired}</p>
+                        <span className="text-text-dim font-mono">Assembly Method</span>
+                        <p className={`mt-0.5 ${ASSEMBLY_COLORS[story.assemblyMethod] || 'text-text-primary'}`}>{story.assemblyMethod}</p>
                       </div>
                       <div>
-                        <span className="text-text-dim font-mono">Source Stream</span>
-                        <p className="text-text-primary mt-0.5">{story.sourceStream}</p>
+                        <span className="text-text-dim font-mono">Asset Source</span>
+                        <p className={`mt-0.5 ${ASSET_SOURCE_COLORS[story.assetSource] || 'text-text-primary'}`}>
+                          {ASSET_SOURCE_LABELS[story.assetSource] || story.assetSource}
+                        </p>
                       </div>
                       <div>
                         <span className="text-text-dim font-mono">Publisher</span>
@@ -322,10 +350,6 @@ export default function ContentPlanPage() {
                           <p className="text-text-primary mt-0.5">{story.sponsorRatio}</p>
                         </div>
                       )}
-                      <div>
-                        <span className="text-text-dim font-mono">Funnel Block</span>
-                        <p className="text-text-primary mt-0.5">{story.funnelBlockAssignment}</p>
-                      </div>
                       <div>
                         <span className="text-text-dim font-mono">Evergreen</span>
                         <p className="text-text-primary mt-0.5">{story.evergreenFlag}</p>
@@ -393,21 +417,21 @@ export default function ContentPlanPage() {
                 The Content Plan generates these downstream production documents. Proceed to Pre-Production to generate detailed briefs.
               </p>
 
-              {/* Production Briefs */}
+              {/* Track 1: Asset Production */}
               <div className="console-card p-5 border-amber-400/20">
                 <div className="flex items-start gap-4">
                   <span className="text-2xl">◉</span>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
-                      <h4 className="text-text-primary font-bold">PANIC Documents</h4>
-                      <span className="text-xs font-mono text-amber-400">{stories.filter(s => s.productionRoute === 'Capture' || s.productionRoute === 'Legacy').length} capture stories</span>
+                      <h4 className="text-text-primary font-bold">Capture Briefs</h4>
+                      <span className="text-xs font-mono text-amber-400">{captureCount} stories need capture</span>
                     </div>
                     <p className="text-text-secondary text-sm mb-2">
-                      Purpose, Access, Narrative, Integrity, Craft — structured pre-production briefs for each capture-route story unit. Generated in Pre-Production.
+                      Structured pre-production briefs for original asset capture. Uses PANIC framework (Purpose, Access, Narrative, Integrity, Craft) as inspiration. These produce <strong>assets</strong>, not finished stories.
                     </p>
                     <div className="bg-console-surface border border-console-border rounded-lg p-3">
                       <span className="text-xs font-mono text-text-dim">Includes:</span>
-                      <p className="text-text-muted text-xs mt-1">Working title, synopsis, background, story source, location, subject availability, editorial pillar, angle, regional narrative, jeopardy, desired outcome, full PANIC breakdown, and talent profile.</p>
+                      <p className="text-text-muted text-xs mt-1">Working title, synopsis, background, location, angle, regional narrative, jeopardy, desired outcome, PANIC breakdown, talent profile, asset type, and capture requirements.</p>
                     </div>
                   </div>
                 </div>
@@ -418,11 +442,11 @@ export default function ContentPlanPage() {
                   <span className="text-2xl">◎</span>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
-                      <h4 className="text-text-primary font-bold">Wendy Scripts</h4>
-                      <span className="text-xs font-mono text-purple-400">Per PANIC</span>
+                      <h4 className="text-text-primary font-bold">Shooting Scripts</h4>
+                      <span className="text-xs font-mono text-purple-400">Per capture brief</span>
                     </div>
                     <p className="text-text-secondary text-sm mb-2">
-                      Interview/shooting scripts with structured narrative — opening statement, supporting statements, jeopardy arc, happy ending, and interview questions. Generated from PANICs.
+                      Interview/shooting scripts with structured narrative arc — opening statement, jeopardy arc, resolution, and interview questions. Generated from Capture Briefs. Taken on set by the production crew.
                     </p>
                     <div className="bg-console-surface border border-console-border rounded-lg p-3">
                       <span className="text-xs font-mono text-text-dim">Structure:</span>
@@ -432,16 +456,32 @@ export default function ContentPlanPage() {
                 </div>
               </div>
 
+              {/* Track 2: Story Assembly */}
               <div className="console-card p-5 border-blue-400/20">
                 <div className="flex items-start gap-4">
                   <span className="text-2xl">⟡</span>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
-                      <h4 className="text-text-primary font-bold">Newsroom Briefs</h4>
-                      <span className="text-xs font-mono text-blue-400">{stories.filter(s => s.productionRoute === 'Newsroom').length} newsroom stories</span>
+                      <h4 className="text-text-primary font-bold">Newsroom Editorial Briefs</h4>
+                      <span className="text-xs font-mono text-blue-400">{newsroomCount} newsroom stories</span>
                     </div>
                     <p className="text-text-secondary text-sm mb-2">
-                      Editorial curation briefs with source constraints, journalistic avatar voice rules, audience context, and quality gates.
+                      Editorial assembly briefs for the Newsroom team — both curated editorial stories and tentpole stories built from captured assets. Includes source constraints, avatar voice rules, and quality gates.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="console-card p-5 border-cyan-400/20">
+                <div className="flex items-start gap-4">
+                  <span className="text-2xl">⚡</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="text-text-primary font-bold">Generative Story Briefs</h4>
+                      <span className="text-xs font-mono text-cyan-400">{generativeCount} generative stories</span>
+                    </div>
+                    <p className="text-text-secondary text-sm mb-2">
+                      Structured AI assembly instructions for generative stories — source references, narrative templates, tone rules, format constraints, and quality checks. Produces stories using structured generative inputs.
                     </p>
                   </div>
                 </div>
@@ -467,34 +507,19 @@ export default function ContentPlanPage() {
                 </div>
               </div>
 
-              {/* Other outputs */}
-              {[
-                {
-                  title: 'Generative Instructions',
-                  desc: 'For all Story Units with route: Generative. Source reference + source type, avatar rules, format specs.',
-                  icon: '⚡',
-                  count: stories.filter(s => s.productionRoute === 'Generative').length,
-                },
-                {
-                  title: 'Story Coverage Report',
-                  desc: 'Audience × funnel stage matrix with gap flags. Available in the Coverage Matrix tab.',
-                  icon: '📊',
-                  count: audiences.length * FUNNEL_STAGES.length,
-                },
-              ].map((output) => (
-                <div key={output.title} className="console-card p-5">
-                  <div className="flex items-start gap-4">
-                    <span className="text-2xl">{output.icon}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="text-text-primary font-bold">{output.title}</h4>
-                        <span className="text-xs font-mono text-text-muted">{output.count} units</span>
-                      </div>
-                      <p className="text-text-secondary text-sm">{output.desc}</p>
+              {/* Coverage report */}
+              <div className="console-card p-5">
+                <div className="flex items-start gap-4">
+                  <span className="text-2xl">📊</span>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="text-text-primary font-bold">Story Coverage Report</h4>
+                      <span className="text-xs font-mono text-text-muted">{audiences.length * FUNNEL_STAGES.length} cells</span>
                     </div>
+                    <p className="text-text-secondary text-sm">Audience × funnel stage matrix with gap flags. Available in the Coverage Matrix tab.</p>
                   </div>
                 </div>
-              ))}
+              </div>
 
               {/* Proceed to Pre-Production */}
               <button

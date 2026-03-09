@@ -28,10 +28,14 @@ function renderValue(val: any): string {
   return String(val);
 }
 
-const BRIEF_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bgColor: string }> = {
-  PANIC: { label: 'PANIC', icon: '◉', color: 'text-amber-400', bgColor: 'bg-amber-400/10 border-amber-400/20' },
-  WENDY: { label: 'Wendy', icon: '◎', color: 'text-purple-400', bgColor: 'bg-purple-400/10 border-purple-400/20' },
-  NEWSROOM_BRIEF: { label: 'Newsroom Brief', icon: '⟡', color: 'text-blue-400', bgColor: 'bg-blue-400/10 border-blue-400/20' },
+const BRIEF_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bgColor: string; track: string }> = {
+  CAPTURE_BRIEF: { label: 'Capture Brief', icon: '◉', color: 'text-amber-400', bgColor: 'bg-amber-400/10 border-amber-400/20', track: 'asset' },
+  SHOOTING_SCRIPT: { label: 'Shooting Script', icon: '◎', color: 'text-purple-400', bgColor: 'bg-purple-400/10 border-purple-400/20', track: 'asset' },
+  NEWSROOM_BRIEF: { label: 'Newsroom Brief', icon: '⟡', color: 'text-blue-400', bgColor: 'bg-blue-400/10 border-blue-400/20', track: 'assembly' },
+  GENERATIVE_BRIEF: { label: 'Generative Brief', icon: '⚡', color: 'text-cyan-400', bgColor: 'bg-cyan-400/10 border-cyan-400/20', track: 'assembly' },
+  // Legacy types for backward compatibility
+  PANIC: { label: 'Capture Brief', icon: '◉', color: 'text-amber-400', bgColor: 'bg-amber-400/10 border-amber-400/20', track: 'asset' },
+  WENDY: { label: 'Shooting Script', icon: '◎', color: 'text-purple-400', bgColor: 'bg-purple-400/10 border-purple-400/20', track: 'asset' },
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -122,11 +126,23 @@ export default function PreProductionPage() {
     return <div className="flex items-center justify-center min-h-[50vh]"><p className="text-text-muted font-mono text-sm">Loading Pre-Production...</p></div>;
   }
 
-  const panics = briefs.filter(b => b.briefType === 'PANIC');
-  const wendys = briefs.filter(b => b.briefType === 'WENDY');
+  // Categorise briefs by type
+  const captureBriefs = briefs.filter(b => b.briefType === 'CAPTURE_BRIEF' || b.briefType === 'PANIC');
+  const shootingScripts = briefs.filter(b => b.briefType === 'SHOOTING_SCRIPT' || b.briefType === 'WENDY');
   const newsroomBriefs = briefs.filter(b => b.briefType === 'NEWSROOM_BRIEF');
+  const generativeBriefs = briefs.filter(b => b.briefType === 'GENERATIVE_BRIEF');
 
-  const filteredBriefs = activeFilter === 'all' ? briefs : briefs.filter(b => b.briefType === activeFilter);
+  // Track groupings
+  const assetBriefs = [...captureBriefs, ...shootingScripts];
+  const assemblyBriefs = [...newsroomBriefs, ...generativeBriefs];
+
+  const filteredBriefs = activeFilter === 'all'
+    ? briefs
+    : activeFilter === 'asset'
+    ? assetBriefs
+    : activeFilter === 'assembly'
+    ? assemblyBriefs
+    : briefs.filter(b => b.briefType === activeFilter);
 
   const approvedCount = briefs.filter(b => b.status === 'APPROVED').length;
   const allApproved = briefs.length > 0 && approvedCount === briefs.length;
@@ -138,7 +154,7 @@ export default function PreProductionPage() {
         <div>
           <h1 className="text-3xl font-bold text-text-primary mb-2">Pre-Production</h1>
           <p className="text-text-secondary text-sm">
-            Generate production briefs — PANIC documents, Wendy scripts, and Newsroom briefs — from the Content Plan.
+            Generate production documents across two tracks — Asset Production (capture briefs + shooting scripts) and Story Assembly (newsroom + generative briefs).
           </p>
         </div>
         <button onClick={() => router.push(`/atlas/forecaster/${projectId}`)} className="text-text-muted hover:text-text-primary text-sm transition font-mono">
@@ -152,98 +168,141 @@ export default function PreProductionPage() {
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">{error}</div>
       )}
 
-      {/* Generation Controls */}
-      <div className="console-card p-6">
-        <h3 className="text-xs font-mono tracking-[0.3em] text-text-dim uppercase mb-4">Generate Production Documents</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* PANIC Generation */}
-          <div className={`p-4 rounded-xl border transition ${panics.length > 0 ? 'bg-amber-400/5 border-amber-400/20' : 'bg-console-surface border-console-border'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-amber-400 text-lg">◉</span>
-              <h4 className="text-text-primary font-bold text-sm">PANIC Documents</h4>
-            </div>
-            <p className="text-text-muted text-xs mb-3">
-              Purpose, Access, Narrative, Integrity, Craft — structured capture briefs for shoot planning.
-            </p>
-            {panics.length > 0 ? (
-              <span className="text-xs font-mono text-amber-400">{panics.length} generated</span>
-            ) : (
-              <button
-                onClick={() => handleGenerate('generate-panics')}
-                disabled={generating !== null}
-                className="px-4 py-2 bg-amber-400/20 text-amber-400 text-xs font-mono rounded-lg border border-amber-400/30 hover:bg-amber-400/30 transition disabled:opacity-50 w-full"
-              >
-                {generating === 'generate-panics' ? 'Generating...' : 'Generate PANICs'}
-              </button>
-            )}
+      {/* Two-Track Generation Controls */}
+      <div className="space-y-6">
+        {/* Track 1: Asset Production */}
+        <div className="console-card p-6 border-amber-400/10">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+            <h3 className="text-xs font-mono tracking-[0.3em] text-amber-400 uppercase">Track 1 — Asset Production</h3>
           </div>
-
-          {/* Wendy Generation */}
-          <div className={`p-4 rounded-xl border transition ${wendys.length > 0 ? 'bg-purple-400/5 border-purple-400/20' : 'bg-console-surface border-console-border'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-purple-400 text-lg">◎</span>
-              <h4 className="text-text-primary font-bold text-sm">Wendy Scripts</h4>
+          <p className="text-text-muted text-xs mb-4 ml-4">For stories that need original capture. Produces reusable assets, not finished stories.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Capture Brief Generation */}
+            <div className={`p-4 rounded-xl border transition ${captureBriefs.length > 0 ? 'bg-amber-400/5 border-amber-400/20' : 'bg-console-surface border-console-border'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-amber-400 text-lg">◉</span>
+                <h4 className="text-text-primary font-bold text-sm">Capture Briefs</h4>
+              </div>
+              <p className="text-text-muted text-xs mb-3">
+                Pre-production briefs for shoots and asset creation. Uses PANIC framework — Purpose, Access, Narrative, Integrity, Craft.
+              </p>
+              {captureBriefs.length > 0 ? (
+                <span className="text-xs font-mono text-amber-400">{captureBriefs.length} generated</span>
+              ) : (
+                <button
+                  onClick={() => handleGenerate('generate-capture-briefs')}
+                  disabled={generating !== null}
+                  className="px-4 py-2 bg-amber-400/20 text-amber-400 text-xs font-mono rounded-lg border border-amber-400/30 hover:bg-amber-400/30 transition disabled:opacity-50 w-full"
+                >
+                  {generating === 'generate-capture-briefs' ? 'Generating...' : 'Generate Capture Briefs'}
+                </button>
+              )}
             </div>
-            <p className="text-text-muted text-xs mb-3">
-              Interview/shooting scripts with narrative structure — opening, jeopardy, resolution, questions.
-            </p>
-            {wendys.length > 0 ? (
-              <span className="text-xs font-mono text-purple-400">{wendys.length} generated</span>
-            ) : panics.length === 0 ? (
-              <span className="text-xs font-mono text-text-dim">Requires PANICs first</span>
-            ) : (
-              <button
-                onClick={() => handleGenerate('generate-wendys')}
-                disabled={generating !== null}
-                className="px-4 py-2 bg-purple-400/20 text-purple-400 text-xs font-mono rounded-lg border border-purple-400/30 hover:bg-purple-400/30 transition disabled:opacity-50 w-full"
-              >
-                {generating === 'generate-wendys' ? 'Generating...' : 'Generate Wendys'}
-              </button>
-            )}
+
+            {/* Shooting Script Generation */}
+            <div className={`p-4 rounded-xl border transition ${shootingScripts.length > 0 ? 'bg-purple-400/5 border-purple-400/20' : 'bg-console-surface border-console-border'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-purple-400 text-lg">◎</span>
+                <h4 className="text-text-primary font-bold text-sm">Shooting Scripts</h4>
+              </div>
+              <p className="text-text-muted text-xs mb-3">
+                Interview/shooting scripts with narrative arc — opening, jeopardy, resolution, questions. Taken on set.
+              </p>
+              {shootingScripts.length > 0 ? (
+                <span className="text-xs font-mono text-purple-400">{shootingScripts.length} generated</span>
+              ) : captureBriefs.length === 0 ? (
+                <span className="text-xs font-mono text-text-dim">Requires Capture Briefs first</span>
+              ) : (
+                <button
+                  onClick={() => handleGenerate('generate-shooting-scripts')}
+                  disabled={generating !== null}
+                  className="px-4 py-2 bg-purple-400/20 text-purple-400 text-xs font-mono rounded-lg border border-purple-400/30 hover:bg-purple-400/30 transition disabled:opacity-50 w-full"
+                >
+                  {generating === 'generate-shooting-scripts' ? 'Generating...' : 'Generate Shooting Scripts'}
+                </button>
+              )}
+            </div>
           </div>
+        </div>
 
-          {/* Newsroom Brief Generation */}
-          <div className={`p-4 rounded-xl border transition ${newsroomBriefs.length > 0 ? 'bg-blue-400/5 border-blue-400/20' : 'bg-console-surface border-console-border'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-blue-400 text-lg">⟡</span>
-              <h4 className="text-text-primary font-bold text-sm">Newsroom Briefs</h4>
+        {/* Track 2: Story Assembly */}
+        <div className="console-card p-6 border-blue-400/10">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+            <h3 className="text-xs font-mono tracking-[0.3em] text-blue-400 uppercase">Track 2 — Story Assembly</h3>
+          </div>
+          <p className="text-text-muted text-xs mb-4 ml-4">Briefs for the Newsroom and Generative assembly methods. These produce finished Story Units.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Newsroom Brief Generation */}
+            <div className={`p-4 rounded-xl border transition ${newsroomBriefs.length > 0 ? 'bg-blue-400/5 border-blue-400/20' : 'bg-console-surface border-console-border'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-blue-400 text-lg">⟡</span>
+                <h4 className="text-text-primary font-bold text-sm">Newsroom Briefs</h4>
+              </div>
+              <p className="text-text-muted text-xs mb-3">
+                Editorial assembly briefs — source constraints, avatar voice, audience context, quality gates. For both curated and asset-based stories.
+              </p>
+              {newsroomBriefs.length > 0 ? (
+                <span className="text-xs font-mono text-blue-400">{newsroomBriefs.length} generated</span>
+              ) : (
+                <button
+                  onClick={() => handleGenerate('generate-newsroom-briefs')}
+                  disabled={generating !== null}
+                  className="px-4 py-2 bg-blue-400/20 text-blue-400 text-xs font-mono rounded-lg border border-blue-400/30 hover:bg-blue-400/30 transition disabled:opacity-50 w-full"
+                >
+                  {generating === 'generate-newsroom-briefs' ? 'Generating...' : 'Generate Newsroom Briefs'}
+                </button>
+              )}
             </div>
-            <p className="text-text-muted text-xs mb-3">
-              Editorial curation briefs with source constraints, avatar voice rules, and quality gates.
-            </p>
-            {newsroomBriefs.length > 0 ? (
-              <span className="text-xs font-mono text-blue-400">{newsroomBriefs.length} generated</span>
-            ) : (
-              <button
-                onClick={() => handleGenerate('generate-newsroom-briefs')}
-                disabled={generating !== null}
-                className="px-4 py-2 bg-blue-400/20 text-blue-400 text-xs font-mono rounded-lg border border-blue-400/30 hover:bg-blue-400/30 transition disabled:opacity-50 w-full"
-              >
-                {generating === 'generate-newsroom-briefs' ? 'Generating...' : 'Generate Newsroom Briefs'}
-              </button>
-            )}
+
+            {/* Generative Brief Generation */}
+            <div className={`p-4 rounded-xl border transition ${generativeBriefs.length > 0 ? 'bg-cyan-400/5 border-cyan-400/20' : 'bg-console-surface border-console-border'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-cyan-400 text-lg">⚡</span>
+                <h4 className="text-text-primary font-bold text-sm">Generative Briefs</h4>
+              </div>
+              <p className="text-text-muted text-xs mb-3">
+                AI assembly instructions — generative source, narrative template, tone rules, format constraints, quality checks.
+              </p>
+              {generativeBriefs.length > 0 ? (
+                <span className="text-xs font-mono text-cyan-400">{generativeBriefs.length} generated</span>
+              ) : (
+                <button
+                  onClick={() => handleGenerate('generate-generative-briefs')}
+                  disabled={generating !== null}
+                  className="px-4 py-2 bg-cyan-400/20 text-cyan-400 text-xs font-mono rounded-lg border border-cyan-400/30 hover:bg-cyan-400/30 transition disabled:opacity-50 w-full"
+                >
+                  {generating === 'generate-generative-briefs' ? 'Generating...' : 'Generate Generative Briefs'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Stats Row */}
       {briefs.length > 0 && (
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-6 gap-3">
           <div className="console-card p-4 text-center">
             <span className="text-2xl font-bold text-accent-teal">{briefs.length}</span>
             <p className="text-xs font-mono text-text-dim mt-1">Total Briefs</p>
           </div>
           <div className="console-card p-4 text-center">
-            <span className="text-2xl font-bold text-amber-400">{panics.length}</span>
-            <p className="text-xs font-mono text-text-dim mt-1">PANICs</p>
+            <span className="text-2xl font-bold text-amber-400">{captureBriefs.length}</span>
+            <p className="text-xs font-mono text-text-dim mt-1">Capture</p>
           </div>
           <div className="console-card p-4 text-center">
-            <span className="text-2xl font-bold text-purple-400">{wendys.length}</span>
-            <p className="text-xs font-mono text-text-dim mt-1">Wendys</p>
+            <span className="text-2xl font-bold text-purple-400">{shootingScripts.length}</span>
+            <p className="text-xs font-mono text-text-dim mt-1">Scripts</p>
           </div>
           <div className="console-card p-4 text-center">
             <span className="text-2xl font-bold text-blue-400">{newsroomBriefs.length}</span>
             <p className="text-xs font-mono text-text-dim mt-1">Newsroom</p>
+          </div>
+          <div className="console-card p-4 text-center">
+            <span className="text-2xl font-bold text-cyan-400">{generativeBriefs.length}</span>
+            <p className="text-xs font-mono text-text-dim mt-1">Generative</p>
           </div>
           <div className="console-card p-4 text-center">
             <span className="text-2xl font-bold text-green-400">{approvedCount}</span>
@@ -254,13 +313,22 @@ export default function PreProductionPage() {
 
       {/* Filter Tabs */}
       {briefs.length > 0 && (
-        <div className="flex gap-1 bg-console-surface rounded-lg p-1">
+        <div className="flex gap-1 bg-console-surface rounded-lg p-1 flex-wrap">
           {[
             { key: 'all', label: `All (${briefs.length})` },
-            { key: 'PANIC', label: `PANICs (${panics.length})` },
-            { key: 'WENDY', label: `Wendys (${wendys.length})` },
+            { key: 'asset', label: `Asset Prod. (${assetBriefs.length})` },
+            { key: 'assembly', label: `Story Assembly (${assemblyBriefs.length})` },
+            { key: 'CAPTURE_BRIEF', label: `Capture (${captureBriefs.length})` },
+            { key: 'SHOOTING_SCRIPT', label: `Scripts (${shootingScripts.length})` },
             { key: 'NEWSROOM_BRIEF', label: `Newsroom (${newsroomBriefs.length})` },
-          ].map(tab => (
+            { key: 'GENERATIVE_BRIEF', label: `Generative (${generativeBriefs.length})` },
+          ].filter(tab => {
+            // Hide tabs with 0 count (except 'all')
+            if (tab.key === 'all') return true;
+            if (tab.key === 'asset') return assetBriefs.length > 0;
+            if (tab.key === 'assembly') return assemblyBriefs.length > 0;
+            return briefs.some(b => b.briefType === tab.key);
+          }).map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveFilter(tab.key)}
@@ -280,7 +348,7 @@ export default function PreProductionPage() {
       {filteredBriefs.length > 0 && (
         <div className="space-y-3">
           {filteredBriefs.map((brief) => {
-            const config = BRIEF_TYPE_CONFIG[brief.briefType] || { label: brief.briefType, icon: '•', color: 'text-text-muted', bgColor: 'bg-console-surface border-console-border' };
+            const config = BRIEF_TYPE_CONFIG[brief.briefType] || { label: brief.briefType, icon: '•', color: 'text-text-muted', bgColor: 'bg-console-surface border-console-border', track: 'other' };
             const isExpanded = expandedBrief === brief.id;
             const content = brief.content;
 
@@ -322,8 +390,8 @@ export default function PreProductionPage() {
                       ))}
                     </div>
 
-                    {/* PANIC Content */}
-                    {brief.briefType === 'PANIC' && (
+                    {/* CAPTURE BRIEF Content */}
+                    {(brief.briefType === 'CAPTURE_BRIEF' || brief.briefType === 'PANIC') && (
                       <div className="space-y-4">
                         {content.synopsis && (
                           <div>
@@ -395,11 +463,27 @@ export default function PreProductionPage() {
                             </div>
                           </div>
                         )}
+                        {(content.assetType || content.captureRequirements) && (
+                          <div className="grid grid-cols-2 gap-4">
+                            {content.assetType && (
+                              <div>
+                                <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Asset Type</h5>
+                                <p className="text-text-secondary text-sm">{renderValue(content.assetType)}</p>
+                              </div>
+                            )}
+                            {content.captureRequirements && (
+                              <div>
+                                <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Capture Requirements</h5>
+                                <p className="text-text-secondary text-sm">{renderValue(content.captureRequirements)}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {/* WENDY Content */}
-                    {brief.briefType === 'WENDY' && (
+                    {/* SHOOTING SCRIPT Content */}
+                    {(brief.briefType === 'SHOOTING_SCRIPT' || brief.briefType === 'WENDY') && (
                       <div className="space-y-4">
                         <div className="bg-purple-400/5 border border-purple-400/20 rounded-xl p-4">
                           <h5 className="text-xs font-mono text-purple-400 uppercase tracking-wide mb-2">Opening Statement</h5>
@@ -469,6 +553,17 @@ export default function PreProductionPage() {
                     {/* NEWSROOM BRIEF Content */}
                     {brief.briefType === 'NEWSROOM_BRIEF' && (
                       <div className="space-y-3">
+                        {content.assemblyStream && (
+                          <div className="mb-2">
+                            <span className={`text-xs font-mono px-2 py-1 rounded border ${
+                              content.assemblyStream === 'asset_packaging'
+                                ? 'bg-amber-400/10 text-amber-400 border-amber-400/20'
+                                : 'bg-blue-400/10 text-blue-400 border-blue-400/20'
+                            }`}>
+                              {content.assemblyStream === 'asset_packaging' ? 'Asset-Based Story' : 'Editorial Curation'}
+                            </span>
+                          </div>
+                        )}
                         <div className="grid grid-cols-2 gap-4">
                           {content.editorialAngle && (
                             <div>
@@ -506,11 +601,104 @@ export default function PreProductionPage() {
                               <p className="text-text-secondary text-sm">{renderValue(content.sponsorIntegration)}</p>
                             </div>
                           )}
+                          {content.assetRequirements && (
+                            <div>
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Asset Requirements</h5>
+                              <p className="text-text-secondary text-sm">{renderValue(content.assetRequirements)}</p>
+                            </div>
+                          )}
+                          {content.narrativeStructure && (
+                            <div>
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Narrative Structure</h5>
+                              <p className="text-text-secondary text-sm">{renderValue(content.narrativeStructure)}</p>
+                            </div>
+                          )}
                         </div>
                         {content.qualityGates && (
                           <div className="bg-console-surface border border-console-border rounded-xl p-4">
                             <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Quality Gates</h5>
                             <p className="text-text-secondary text-xs">{renderValue(content.qualityGates)}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* GENERATIVE BRIEF Content */}
+                    {brief.briefType === 'GENERATIVE_BRIEF' && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-4">
+                          {content.storyObjective && (
+                            <div>
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Story Objective</h5>
+                              <p className="text-text-secondary text-sm">{renderValue(content.storyObjective)}</p>
+                            </div>
+                          )}
+                          {content.generativeSource && (
+                            <div>
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Generative Source</h5>
+                              <p className="text-text-secondary text-sm">{renderValue(content.generativeSource)}</p>
+                            </div>
+                          )}
+                          {content.narrativeTemplate && (
+                            <div>
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Narrative Template</h5>
+                              <p className="text-text-secondary text-sm">{renderValue(content.narrativeTemplate)}</p>
+                            </div>
+                          )}
+                          {content.toneAndVoice && (
+                            <div>
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Tone & Voice</h5>
+                              <p className="text-text-secondary text-sm">{renderValue(content.toneAndVoice)}</p>
+                            </div>
+                          )}
+                          {content.audienceContext && (
+                            <div>
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Audience Context</h5>
+                              <p className="text-text-secondary text-sm">{renderValue(content.audienceContext)}</p>
+                            </div>
+                          )}
+                          {content.formatConstraints && (
+                            <div>
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Format Constraints</h5>
+                              <p className="text-text-secondary text-sm">{renderValue(content.formatConstraints)}</p>
+                            </div>
+                          )}
+                          {content.sponsorRules && (
+                            <div>
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Sponsor Rules</h5>
+                              <p className="text-text-secondary text-sm">{renderValue(content.sponsorRules)}</p>
+                            </div>
+                          )}
+                          {content.variationStrategy && (
+                            <div>
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Variation Strategy</h5>
+                              <p className="text-text-secondary text-sm">{renderValue(content.variationStrategy)}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          {content.assetGuidance && (
+                            <div className="bg-console-surface border border-console-border rounded-xl p-4">
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Asset Guidance</h5>
+                              <p className="text-text-secondary text-xs">{renderValue(content.assetGuidance)}</p>
+                            </div>
+                          )}
+                          {content.qualityChecks && (
+                            <div className="bg-console-surface border border-console-border rounded-xl p-4">
+                              <h5 className="text-xs font-mono text-text-dim uppercase tracking-wide mb-1">Quality Checks</h5>
+                              <p className="text-text-secondary text-xs">{renderValue(content.qualityChecks)}</p>
+                            </div>
+                          )}
+                        </div>
+                        {content.humanGateRequired !== undefined && (
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-mono px-2 py-1 rounded border ${
+                              content.humanGateRequired
+                                ? 'bg-amber-400/10 text-amber-400 border-amber-400/20'
+                                : 'bg-green-400/10 text-green-400 border-green-400/20'
+                            }`}>
+                              {content.humanGateRequired ? 'Human Gate Required' : 'Auto-publish eligible'}
+                            </span>
                           </div>
                         )}
                       </div>

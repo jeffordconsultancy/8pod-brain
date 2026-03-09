@@ -53,17 +53,25 @@ export async function POST(req: NextRequest) {
   const clients = await getAIClients(workspaceId);
   const knowledgeCtx = await getKnowledgeContext(workspaceId, `${bp.sponsorName} ${bp.rightsHolder} production briefs`);
 
-  if (action === 'generate-panics') {
-    // Generate PANIC documents for Capture-route story units
-    const captureStories = stories.filter((s: any) => s.productionRoute === 'Capture' || s.productionRoute === 'Legacy');
+  // ─────────────────────────────────────────────────────────────
+  // TRACK 1 — ASSET PRODUCTION: Capture Briefs
+  // For stories where captureRequired === true (original asset capture needed)
+  // Inspired by PANIC structure (Purpose, Access, Narrative, Integrity, Craft)
+  // ─────────────────────────────────────────────────────────────
+  if (action === 'generate-capture-briefs') {
+    const captureStories = stories.filter((s: any) => s.captureRequired === true);
 
     if (captureStories.length === 0) {
-      return NextResponse.json({ error: 'No capture-route story units to generate PANICs for' }, { status: 400 });
+      return NextResponse.json({ error: 'No stories requiring original capture found' }, { status: 400 });
     }
 
-    const systemPrompt = `You are the 8pod Production Brief engine. Generate PANIC documents (Purpose, Access, Narrative, Integrity, Craft) for content production.
+    console.log(`[ProductionBriefs] Generating capture briefs for ${captureStories.length} stories`);
 
-A PANIC document is a structured pre-production brief used to plan shoots and capture. It must include:
+    const systemPrompt = `You are the 8pod Capture Brief engine. Generate structured pre-production briefs for original asset capture.
+
+A Capture Brief is a structured document used to plan shoots and asset creation. It follows the PANIC structure (Purpose, Access, Narrative, Integrity, Craft) as a framework, but should feel natural and production-ready.
+
+Each capture brief must include:
 
 1. workingTitle: The character/subject name or story title
 2. synopsis: Max 2 sentences — the elevator pitch for the story
@@ -83,10 +91,14 @@ A PANIC document is a structured pre-production brief used to plan shoots and ca
 16. craft: Visual treatment overview — cinematography style, techniques
 17. supportingVisuals: Any archival material needed from the subject
 18. talentProfile: Name, background, relevance of the talent/subject
+19. assetType: What type of asset will be produced (video, photography, or both)
+20. captureRequirements: Equipment, crew size, location requirements
+
+IMPORTANT: These briefs are for ASSET CAPTURE — the assets produced will later be used during Story Assembly (by the Newsroom) to build finished Story Units. Capture does NOT produce finished stories directly.
 
 Generate briefs that are detailed and production-ready. Each brief should be specific to the story unit's theme, audience, and tone.
 
-Return a JSON array of PANIC objects. Return ONLY valid JSON, no other text.`;
+Return a JSON array of capture brief objects. Return ONLY valid JSON, no other text.`;
 
     const userPrompt = `Blueprint Context:
 Sponsor: ${bp.sponsorName}
@@ -96,7 +108,7 @@ Audience: ${bp.audienceProfile}
 
 ${knowledgeCtx ? `Workspace Knowledge:\n${knowledgeCtx.slice(0, 2000)}\n` : ''}
 
-Generate PANIC documents for these ${captureStories.length} story units:
+Generate Capture Briefs for these ${captureStories.length} story units that require original asset production:
 ${captureStories.map((s: any, i: number) => `
 ${i + 1}. Story ID: ${s.storyId}
    Theme: ${s.storyTheme}
@@ -109,11 +121,13 @@ ${i + 1}. Story ID: ${s.storyId}
    Value Frame: ${s.valueFrame}
    Format: ${s.primaryFormat}
    Has Talent: ${s.talentSignal}
+   Assembly Method: ${s.assemblyMethod}
+   Asset Source: ${s.assetSource}
 `).join('')}
 
-Return a JSON array with one PANIC object per story unit.`;
+Return a JSON array with one capture brief per story unit.`;
 
-    let panicsData: any[] = [];
+    let briefsData: any[] = [];
 
     try {
       if (clients.claude) {
@@ -125,7 +139,7 @@ Return a JSON array with one PANIC object per story unit.`;
         });
         const text = (res.content[0] as any).text;
         const match = text.match(/\[[\s\S]*\]/);
-        if (match) panicsData = JSON.parse(match[0]);
+        if (match) briefsData = JSON.parse(match[0]);
       } else if (clients.openai) {
         const res = await clients.openai.chat.completions.create({
           model: 'gpt-4o',
@@ -137,48 +151,58 @@ Return a JSON array with one PANIC object per story unit.`;
         });
         const text = res.choices[0]?.message?.content || '';
         const match = text.match(/\[[\s\S]*\]/);
-        if (match) panicsData = JSON.parse(match[0]);
+        if (match) briefsData = JSON.parse(match[0]);
       }
     } catch (e) {
-      console.log('AI PANIC generation failed, using fallback:', (e as any)?.message);
+      console.log('[ProductionBriefs] AI capture brief generation failed, using fallback:', (e as any)?.message);
     }
 
     // Fallback
-    if (panicsData.length === 0) {
-      panicsData = captureStories.map((s: any) => generateFallbackPanic(s, bp));
+    if (briefsData.length === 0) {
+      briefsData = captureStories.map((s: any) => generateFallbackCaptureBrief(s, bp));
     }
 
-    // Save PANIC briefs
-    for (let i = 0; i < panicsData.length; i++) {
-      const panic = panicsData[i];
+    // Save capture briefs
+    for (let i = 0; i < briefsData.length; i++) {
+      const brief = briefsData[i];
       const storyUnit = captureStories[i];
-      await db.productionBrief.create({
-        data: {
-          projectId,
-          storyUnitId: storyUnit?.id,
-          briefType: 'PANIC',
-          title: panic.workingTitle || `PANIC — ${storyUnit?.storyTheme || 'Story'} ${i + 1}`,
-          content: panic,
-        },
-      });
+      try {
+        await db.productionBrief.create({
+          data: {
+            projectId,
+            storyUnitId: storyUnit?.id,
+            briefType: 'CAPTURE_BRIEF',
+            title: brief.workingTitle || `Capture Brief — ${storyUnit?.storyTheme || 'Story'} ${i + 1}`,
+            content: brief,
+          },
+        });
+      } catch (e) {
+        console.error(`[ProductionBriefs] Failed to save capture brief ${i}:`, (e as any)?.message);
+      }
     }
 
-    return NextResponse.json({ success: true, count: panicsData.length });
+    return NextResponse.json({ success: true, count: briefsData.length });
   }
 
-  if (action === 'generate-wendys') {
-    // Generate Wendy scripts for story units that have PANICs
-    const existingPanics = await db.productionBrief.findMany({
-      where: { projectId, briefType: 'PANIC' },
+  // ─────────────────────────────────────────────────────────────
+  // TRACK 1 — ASSET PRODUCTION: Shooting Scripts
+  // Derived from Capture Briefs — interview/shooting scripts for on-set use
+  // Inspired by Wendy structure (opening, jeopardy arc, resolution, questions)
+  // ─────────────────────────────────────────────────────────────
+  if (action === 'generate-shooting-scripts') {
+    const existingCaptureBriefs = await db.productionBrief.findMany({
+      where: { projectId, briefType: 'CAPTURE_BRIEF' },
     });
 
-    if (existingPanics.length === 0) {
-      return NextResponse.json({ error: 'Generate PANICs first before creating Wendy scripts' }, { status: 400 });
+    if (existingCaptureBriefs.length === 0) {
+      return NextResponse.json({ error: 'Generate Capture Briefs first before creating shooting scripts' }, { status: 400 });
     }
 
-    const systemPrompt = `You are the 8pod Wendy Script engine. Generate Wendy interview/shooting scripts from PANIC documents.
+    console.log(`[ProductionBriefs] Generating shooting scripts for ${existingCaptureBriefs.length} capture briefs`);
 
-A Wendy is a structured interview script that the Shooter takes on set. It follows this specific narrative structure:
+    const systemPrompt = `You are the 8pod Shooting Script engine. Generate interview and shooting scripts from Capture Briefs.
+
+A Shooting Script is a structured document the production crew takes on set. It follows a narrative arc designed to elicit authentic responses. The structure is:
 
 1. openingStatement: A single statement with an element of surprise that hooks the audience. Written in the subject's voice.
 2. supportingStatements: 3-4 statements giving context to the opening. What is the story about, why does the subject do what they do?
@@ -190,18 +214,18 @@ A Wendy is a structured interview script that the Shooter takes on set. It follo
 
 The statements should be written in the subject's voice — as if they are speaking. Consider the subject's age, personality, and language.
 
-Return a JSON array of Wendy objects. Return ONLY valid JSON, no other text.`;
+Return a JSON array of shooting script objects. Return ONLY valid JSON, no other text.`;
 
     const userPrompt = `Blueprint Context:
 Sponsor: ${bp.sponsorName}
 Rights Holder: ${bp.rightsHolder}
 Market: ${bp.market}
 
-Generate Wendy scripts for these ${existingPanics.length} PANIC briefs:
-${existingPanics.map((panic: any, i: number) => {
-  const content = panic.content as any;
+Generate Shooting Scripts for these ${existingCaptureBriefs.length} capture briefs:
+${existingCaptureBriefs.map((brief: any, i: number) => {
+  const content = brief.content as any;
   return `
-${i + 1}. Title: ${panic.title}
+${i + 1}. Title: ${brief.title}
    Synopsis: ${content.synopsis || 'N/A'}
    Angle: ${content.angle || 'N/A'}
    Purpose: ${content.purpose || 'N/A'}
@@ -213,9 +237,9 @@ ${i + 1}. Title: ${panic.title}
 `;
 }).join('')}
 
-Return a JSON array with one Wendy object per PANIC brief.`;
+Return a JSON array with one shooting script per capture brief.`;
 
-    let wendysData: any[] = [];
+    let scriptsData: any[] = [];
 
     try {
       if (clients.claude) {
@@ -227,7 +251,7 @@ Return a JSON array with one Wendy object per PANIC brief.`;
         });
         const text = (res.content[0] as any).text;
         const match = text.match(/\[[\s\S]*\]/);
-        if (match) wendysData = JSON.parse(match[0]);
+        if (match) scriptsData = JSON.parse(match[0]);
       } else if (clients.openai) {
         const res = await clients.openai.chat.completions.create({
           model: 'gpt-4o',
@@ -239,55 +263,72 @@ Return a JSON array with one Wendy object per PANIC brief.`;
         });
         const text = res.choices[0]?.message?.content || '';
         const match = text.match(/\[[\s\S]*\]/);
-        if (match) wendysData = JSON.parse(match[0]);
+        if (match) scriptsData = JSON.parse(match[0]);
       }
     } catch (e) {
-      console.log('AI Wendy generation failed, using fallback:', (e as any)?.message);
+      console.log('[ProductionBriefs] AI shooting script generation failed, using fallback:', (e as any)?.message);
     }
 
     // Fallback
-    if (wendysData.length === 0) {
-      wendysData = existingPanics.map((panic: any) => generateFallbackWendy(panic));
+    if (scriptsData.length === 0) {
+      scriptsData = existingCaptureBriefs.map((brief: any) => generateFallbackShootingScript(brief));
     }
 
-    // Save Wendy briefs
-    for (let i = 0; i < wendysData.length; i++) {
-      const wendy = wendysData[i];
-      const panic = existingPanics[i];
-      await db.productionBrief.create({
-        data: {
-          projectId,
-          storyUnitId: (panic as any).storyUnitId,
-          briefType: 'WENDY',
-          title: `Wendy — ${panic.title.replace('PANIC — ', '')}`,
-          content: wendy,
-        },
-      });
+    // Save shooting scripts
+    for (let i = 0; i < scriptsData.length; i++) {
+      const script = scriptsData[i];
+      const captureBrief = existingCaptureBriefs[i];
+      try {
+        await db.productionBrief.create({
+          data: {
+            projectId,
+            storyUnitId: (captureBrief as any).storyUnitId,
+            briefType: 'SHOOTING_SCRIPT',
+            title: `Shooting Script — ${captureBrief.title.replace('Capture Brief — ', '')}`,
+            content: script,
+          },
+        });
+      } catch (e) {
+        console.error(`[ProductionBriefs] Failed to save shooting script ${i}:`, (e as any)?.message);
+      }
     }
 
-    return NextResponse.json({ success: true, count: wendysData.length });
+    return NextResponse.json({ success: true, count: scriptsData.length });
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // TRACK 2 — STORY ASSEMBLY: Newsroom Editorial Briefs
+  // For stories assembled by the Newsroom team
+  // ─────────────────────────────────────────────────────────────
   if (action === 'generate-newsroom-briefs') {
-    const newsroomStories = stories.filter((s: any) => s.productionRoute === 'Newsroom');
+    const newsroomStories = stories.filter((s: any) => s.assemblyMethod === 'Newsroom');
 
     if (newsroomStories.length === 0) {
-      return NextResponse.json({ error: 'No newsroom-route story units' }, { status: 400 });
+      return NextResponse.json({ error: 'No Newsroom-assembled story units found' }, { status: 400 });
     }
 
-    const systemPrompt = `You are the 8pod Newsroom Brief engine. Generate editorial curation briefs for newsroom-route story units.
+    console.log(`[ProductionBriefs] Generating newsroom briefs for ${newsroomStories.length} stories`);
+
+    const systemPrompt = `You are the 8pod Newsroom Brief engine. Generate editorial assembly briefs for stories that will be assembled by the Newsroom team.
+
+The Newsroom assembles stories through two streams:
+1. Editorial Research & Curation — creating stories by curating relevant material, research, and archival content
+2. Asset-Based Story Creation — packaging captured production assets into Story Units according to format treatments
 
 A Newsroom Brief must include:
 1. headline: Working editorial headline
-2. editorialAngle: The specific curation angle
-3. sourceConstraints: What sources can/should be used
-4. curationParameters: Key themes, entities, and topics to curate around
-5. avatarVoice: The journalistic avatar's tone and register for this piece
-6. audienceContext: Who this is for and why they care
-7. formatSpec: Format requirements (long-form, short-form, interactive, etc.)
-8. sponsorIntegration: How sponsor presence should be handled (ratio, placement)
-9. deadline: Suggested production timeline
-10. qualityGates: Editorial standards that must be met before publication
+2. editorialAngle: The specific curation or narrative angle
+3. assemblyStream: Which newsroom stream — "editorial_curation" or "asset_packaging"
+4. sourceConstraints: What sources can/should be used (curated material, captured assets, legacy archives)
+5. curationParameters: Key themes, entities, and topics to curate around
+6. avatarVoice: The journalistic avatar's tone and register for this piece
+7. audienceContext: Who this is for and why they care
+8. formatSpec: Format requirements (long-form, short-form, interactive, etc.)
+9. sponsorIntegration: How sponsor presence should be handled (ratio, placement)
+10. assetRequirements: What assets are needed from the Asset Library (captured footage, legacy material, etc.)
+11. narrativeStructure: How the story arc should be structured
+12. deadline: Suggested production timeline
+13. qualityGates: Editorial standards that must be met before publication
 
 Return a JSON array. Return ONLY valid JSON, no other text.`;
 
@@ -305,6 +346,8 @@ ${i + 1}. Story ID: ${s.storyId}
    Avatar: ${s.journalisticAvatar}
    Tone: ${s.toneBand}
    Format: ${s.primaryFormat}
+   Asset Source: ${s.assetSource}
+   Capture Required: ${s.captureRequired}
    Sponsor: ${s.sponsorPresence ? `Yes (${s.sponsorRatio})` : 'No'}
 `).join('')}`;
 
@@ -335,19 +378,26 @@ ${i + 1}. Story ID: ${s.storyId}
         if (match) briefsData = JSON.parse(match[0]);
       }
     } catch (e) {
-      console.log('AI Newsroom brief generation failed:', (e as any)?.message);
+      console.log('[ProductionBriefs] AI Newsroom brief generation failed:', (e as any)?.message);
     }
 
     if (briefsData.length === 0) {
       briefsData = newsroomStories.map((s: any) => ({
         headline: `${s.storyTheme} — Editorial Brief`,
         editorialAngle: `${s.atlasStoryType} perspective on ${s.storyTheme}`,
-        sourceConstraints: 'Verified sources only. Cross-reference with rights holder archive.',
+        assemblyStream: s.captureRequired ? 'asset_packaging' : 'editorial_curation',
+        sourceConstraints: s.captureRequired
+          ? 'Primary: captured production assets. Secondary: rights holder archive.'
+          : 'Verified sources only. Cross-reference with rights holder archive.',
         curationParameters: `Theme: ${s.storyTheme}. Value Frame: ${s.valueFrame}. Audience: ${s.audienceLabel}.`,
         avatarVoice: `${s.journalisticAvatar} — ${s.toneBand} register`,
         audienceContext: `${s.audienceLabel} audience at ${s.funnelStage} stage`,
         formatSpec: s.primaryFormat || 'Editorial',
         sponsorIntegration: s.sponsorPresence ? `Sponsor ratio: ${s.sponsorRatio}` : 'No sponsor presence',
+        assetRequirements: s.captureRequired
+          ? `Captured assets from original production. Asset source: ${s.assetSource}`
+          : `Curated material from ${s.assetSource || 'available sources'}`,
+        narrativeStructure: 'Opening hook → Context → Depth → Resolution → Call to action',
         deadline: 'Per sprint cadence',
         qualityGates: 'Fact-check, editorial review, avatar voice compliance, brand safety check',
       }));
@@ -356,21 +406,154 @@ ${i + 1}. Story ID: ${s.storyId}
     for (let i = 0; i < briefsData.length; i++) {
       const brief = briefsData[i];
       const storyUnit = newsroomStories[i];
-      await db.productionBrief.create({
-        data: {
-          projectId,
-          storyUnitId: storyUnit?.id,
-          briefType: 'NEWSROOM_BRIEF',
-          title: brief.headline || `Newsroom Brief ${i + 1}`,
-          content: brief,
-        },
-      });
+      try {
+        await db.productionBrief.create({
+          data: {
+            projectId,
+            storyUnitId: storyUnit?.id,
+            briefType: 'NEWSROOM_BRIEF',
+            title: brief.headline || `Newsroom Brief ${i + 1}`,
+            content: brief,
+          },
+        });
+      } catch (e) {
+        console.error(`[ProductionBriefs] Failed to save newsroom brief ${i}:`, (e as any)?.message);
+      }
     }
 
     return NextResponse.json({ success: true, count: briefsData.length });
   }
 
-  return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+  // ─────────────────────────────────────────────────────────────
+  // TRACK 2 — STORY ASSEMBLY: Generative Story Briefs
+  // For stories assembled using AI/generative methods
+  // ─────────────────────────────────────────────────────────────
+  if (action === 'generate-generative-briefs') {
+    const generativeStories = stories.filter((s: any) => s.assemblyMethod === 'Generative');
+
+    if (generativeStories.length === 0) {
+      return NextResponse.json({ error: 'No Generative-assembled story units found' }, { status: 400 });
+    }
+
+    console.log(`[ProductionBriefs] Generating generative story briefs for ${generativeStories.length} stories`);
+
+    const systemPrompt = `You are the 8pod Generative Story Brief engine. Generate structured AI assembly instructions for stories that will be created using generative methods.
+
+A Generative Story Brief provides all the structured inputs needed for AI-assisted story creation. The brief must include:
+
+1. headline: Working story headline
+2. storyObjective: What this story should achieve (awareness, engagement, conversion)
+3. generativeSource: What data/content the AI will use as source material
+4. generativeSourceType: One of: "blueprint_insight", "performance_signal", "asset_id", "structured_dataset"
+5. narrativeTemplate: The storytelling structure to follow
+6. toneAndVoice: How the AI should write — avatar voice, register, personality
+7. audienceContext: Who this is for and the emotional connection intended
+8. formatConstraints: Length, format, visual treatment requirements
+9. sponsorRules: How sponsor presence should be handled
+10. humanGateRequired: Whether human review is needed before publication
+11. qualityChecks: Automated quality requirements (brand safety, factual accuracy, tone compliance)
+12. variationStrategy: How to create format variants (headline personalisation, A/B testing, etc.)
+13. assetGuidance: What visual assets to pair with the generated narrative
+14. attributionRules: How to credit sources and data
+
+IMPORTANT: Generative stories still use structured inputs and system constraints. They are NOT unconstrained AI generation — they follow format rules, audience targeting, and brand safety requirements.
+
+Return a JSON array. Return ONLY valid JSON, no other text.`;
+
+    const userPrompt = `Blueprint Context:
+Sponsor: ${bp.sponsorName}
+Rights Holder: ${bp.rightsHolder}
+Market: ${bp.market}
+
+Generate Generative Story Briefs for these ${generativeStories.length} story units:
+${generativeStories.map((s: any, i: number) => `
+${i + 1}. Story ID: ${s.storyId}
+   Theme: ${s.storyTheme}
+   Audience: ${s.audienceLabel}
+   Funnel: ${s.funnelStage}
+   Story Type: ${s.atlasStoryType}
+   Avatar: ${s.journalisticAvatar}
+   Tone: ${s.toneBand}
+   Value Frame: ${s.valueFrame}
+   Format: ${s.primaryFormat}
+   Asset Source: ${s.assetSource}
+   Generative Source Type: ${s.generativeSourceType || 'blueprint_insight'}
+   Sponsor: ${s.sponsorPresence ? `Yes (${s.sponsorRatio})` : 'No'}
+   Headline Personalisation: ${s.headlinePersonalisation}
+   Headline Variants: ${s.headlineVariantCount || 1}
+`).join('')}`;
+
+    let briefsData: any[] = [];
+
+    try {
+      if (clients.claude) {
+        const res = await clients.claude.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 6000,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+        });
+        const text = (res.content[0] as any).text;
+        const match = text.match(/\[[\s\S]*\]/);
+        if (match) briefsData = JSON.parse(match[0]);
+      } else if (clients.openai) {
+        const res = await clients.openai.chat.completions.create({
+          model: 'gpt-4o',
+          max_tokens: 6000,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        });
+        const text = res.choices[0]?.message?.content || '';
+        const match = text.match(/\[[\s\S]*\]/);
+        if (match) briefsData = JSON.parse(match[0]);
+      }
+    } catch (e) {
+      console.log('[ProductionBriefs] AI Generative brief generation failed:', (e as any)?.message);
+    }
+
+    if (briefsData.length === 0) {
+      briefsData = generativeStories.map((s: any) => ({
+        headline: `${s.storyTheme} — Generative Story`,
+        storyObjective: s.funnelStage === 'Conversion' ? 'Drive conversion' : s.funnelStage === 'Immersion' ? 'Deepen engagement' : 'Build awareness',
+        generativeSource: `Blueprint insight: ${s.storyTheme}. Performance signals from audience: ${s.audienceLabel}`,
+        generativeSourceType: s.generativeSourceType || 'blueprint_insight',
+        narrativeTemplate: `${s.atlasStoryType} template — ${s.storyTreatment || 'standard treatment'}`,
+        toneAndVoice: `${s.journalisticAvatar} avatar. ${s.toneBand} register. Value frame: ${s.valueFrame}`,
+        audienceContext: `${s.audienceLabel} at ${s.funnelStage} stage`,
+        formatConstraints: `Format: ${s.primaryFormat || 'Digital'}. Variants required: ${s.formatVariantsRequired || 1}`,
+        sponsorRules: s.sponsorPresence ? `Sponsor ratio: ${s.sponsorRatio}. Sponsor presence integrated.` : 'No sponsor integration',
+        humanGateRequired: s.humanGateRequired !== false,
+        qualityChecks: 'Brand safety scan, tone compliance, factual accuracy, audience alignment verification',
+        variationStrategy: s.headlinePersonalisation ? `${s.headlineVariantCount || 3} headline variants for A/B testing` : 'Single variant',
+        assetGuidance: `Source: ${s.assetSource || 'GenerativeAI'}. Match visual treatment to ${s.toneBand} tone.`,
+        attributionRules: 'Data-sourced claims must be attributed. Blueprint insights credited to research phase.',
+      }));
+    }
+
+    for (let i = 0; i < briefsData.length; i++) {
+      const brief = briefsData[i];
+      const storyUnit = generativeStories[i];
+      try {
+        await db.productionBrief.create({
+          data: {
+            projectId,
+            storyUnitId: storyUnit?.id,
+            briefType: 'GENERATIVE_BRIEF',
+            title: brief.headline || `Generative Brief ${i + 1}`,
+            content: brief,
+          },
+        });
+      } catch (e) {
+        console.error(`[ProductionBriefs] Failed to save generative brief ${i}:`, (e as any)?.message);
+      }
+    }
+
+    return NextResponse.json({ success: true, count: briefsData.length });
+  }
+
+  return NextResponse.json({ error: 'Unknown action. Valid actions: generate-capture-briefs, generate-shooting-scripts, generate-newsroom-briefs, generate-generative-briefs' }, { status: 400 });
 }
 
 // PATCH: Update brief status
@@ -393,7 +576,11 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ success: true });
 }
 
-function generateFallbackPanic(story: any, bp: any): any {
+// ─────────────────────────────────────────────────────────────
+// FALLBACK GENERATORS
+// ─────────────────────────────────────────────────────────────
+
+function generateFallbackCaptureBrief(story: any, bp: any): any {
   return {
     workingTitle: story.storyTheme || 'Story Subject',
     synopsis: `A ${story.atlasStoryType?.toLowerCase() || 'compelling'} story exploring ${story.storyTheme || 'the subject'} for ${story.audienceLabel || 'the target audience'}.`,
@@ -423,11 +610,13 @@ function generateFallbackPanic(story: any, bp: any): any {
       background: 'To be identified',
       relevance: `Aligned with ${story.storyTheme} theme and ${story.audienceLabel} audience`,
     },
+    assetType: story.primaryFormat?.toLowerCase().includes('video') ? 'Video' : 'Video and Photography',
+    captureRequirements: `Crew size TBD. Location: ${bp.market || 'TBD'}. Equipment per format treatment.`,
   };
 }
 
-function generateFallbackWendy(panic: any): any {
-  const content = panic.content as any;
+function generateFallbackShootingScript(captureBrief: any): any {
+  const content = captureBrief.content as any;
   return {
     openingStatement: `[Opening statement to be crafted based on: ${content.angle || content.synopsis || 'the story angle'}]`,
     supportingStatements: [

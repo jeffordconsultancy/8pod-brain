@@ -136,8 +136,8 @@ export default function ProductionPage() {
           <h2 className="text-2xl font-bold text-text-primary mb-2">Creative Overviews</h2>
           <p className="text-text-secondary max-w-lg mx-auto mb-6">
             Generate format treatments and creative overviews from the Content Plan and rights package.
-            These are presentation-ready documents — like the pitch decks used for Ryan Reynolds x SailGP,
-            Sylvia Earle x Rolex, or McLaren F1 formats.
+            These are presentation-ready documents that define how stories are assembled and presented —
+            covering both Newsroom and Generative assembly methods.
           </p>
           <button
             onClick={handleGenerate}

@@ -406,8 +406,9 @@ model StoryUnit {
   sponsorPresence           Boolean   @default(false)
   sponsorId                 String?
   sponsorRatio              String?   // e.g. "90:10"
-  productionRoute           String?   // Legacy, Newsroom, Capture, Generative
-  sourceStream              String?   // RH Archive, Curation, Original Shoot, AI-Generated
+  assemblyMethod            String?   // Newsroom, Generative — how the story is ASSEMBLED
+  assetSource               String?   // OriginalCapture, RightsHolderArchive, Curated, Sponsor, GenerativeAI — where assets come FROM
+  captureRequired           Boolean   @default(false)  // true if original asset capture is needed upstream
   sourceAssetId             String?
   generativeSource          String?
   generativeSourceType      String?   // asset_id, blueprint_insight, performance_signal
