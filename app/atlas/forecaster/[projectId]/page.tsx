@@ -45,7 +45,8 @@ const STATUS_TO_PHASE: Record<string, number> = {
   'content-plan': 5,
   'pre-production': 6,
   production: 7,
-  complete: 7,
+  studio: 8,
+  complete: 8,
 };
 
 function getPhases(status: string) {
@@ -55,7 +56,8 @@ function getPhases(status: string) {
     { id: 'validate', label: 'Validate', status: current > 4 ? 'complete' as const : current === 4 ? 'active' as const : 'locked' as const },
     { id: 'content-plan', label: 'Content Plan', status: current > 5 ? 'complete' as const : current === 5 ? 'active' as const : 'locked' as const },
     { id: 'pre-production', label: 'Pre-Production', status: current > 6 ? 'complete' as const : current === 6 ? 'active' as const : 'locked' as const },
-    { id: 'production', label: 'Production', status: current >= 7 ? 'active' as const : 'locked' as const },
+    { id: 'production', label: 'Production', status: current > 7 ? 'complete' as const : current === 7 ? 'active' as const : 'locked' as const },
+    { id: 'studio', label: 'Studio', status: current >= 8 ? 'active' as const : 'locked' as const },
   ];
 }
 

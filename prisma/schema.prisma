@@ -300,6 +300,7 @@ model ForecastProject {
   contentPlans           ContentPlan[]
   productionBriefs       ProductionBrief[]
   creativeOverviews      CreativeOverview[]
+  contentPieces          ContentPiece[]
 
   @@map("forecast_projects")
 }
@@ -491,6 +492,108 @@ model CreativeOverview {
 
   @@index([projectId])
   @@map("creative_overviews")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONTENT PIECES — Actual produced content from production briefs
+// The bridge between System One (planning) and System Two (execution)
+// ─────────────────────────────────────────────────────────────
+
+model ContentPiece {
+  id              String    @id @default(uuid())
+  projectId       String
+  briefId         String?   // Links back to the ProductionBrief that spawned this
+  storyUnitId     String?   // Links back to the StoryUnit
+
+  // Content identity
+  headline        String
+  slug            String?
+  bodyContent     String    @db.Text    // The actual content body (rich text / markdown)
+  summary         String?               // AI-generated summary for editorial review
+
+  // Production metadata (inherited from brief + story unit)
+  assemblyMethod  String?   // Newsroom, Generative
+  assetSource     String?   // OriginalCapture, RightsHolderArchive, Curated, Sponsor, GenerativeAI
+  atlasStoryType  String?   // From Atlas 8
+  funnelStage     String?   // Inspiration, Aspiration, Immersion, Conversion
+  toneBand        String?   // Authoritative, Empathetic, Wry, Cultural Translator
+  valueFrame      String?   // Belonging, Achievement, Identity, Insider Access
+  audienceLabel   String?
+  format          String?   // article, video_script, social_post, interactive, etc.
+
+  // Sponsor & compliance
+  sponsorRatio    String?   // e.g. "90:10"
+  sponsorPresence Boolean   @default(false)
+  complianceFlags Json      @default("[]")  // Array of compliance check results
+
+  // Quality & editorial
+  qualityScore    Int?      // 0-100 computed quality score
+  editorialNotes  String?   @db.Text    // Human editor notes
+  revisionCount   Int       @default(0)
+
+  // Workflow
+  status          String    @default("DRAFT")
+  // DRAFT → IN_REVIEW → REVISION_REQUESTED → APPROVED → READY_FOR_DISTRIBUTION → DISTRIBUTED → LIVE → ARCHIVED
+  assignedTo      String?   // Editor/reviewer userId
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  approvedBy      String?
+  approvedAt      DateTime?
+  distributedAt   DateTime?
+
+  // External tool integration
+  externalId      String?   // ID in external system (Adobe, CMS, etc.)
+  externalSystem  String?   // "adobe_express", "wordpress", "custom_cms"
+  externalUrl     String?   // Link to content in external tool
+  exportedAt      DateTime?
+
+  // Content variants (A/B testing, headline personalisation)
+  variantOf       String?   // Parent content piece ID if this is a variant
+  variantLabel    String?   // e.g. "Headline A", "UK Audience"
+
+  generatedBy     String    @default("ai")  // ai, manual, hybrid
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project         ForecastProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  variants        ContentPiece[]  @relation("ContentVariants")
+  parent          ContentPiece?   @relation("ContentVariants", fields: [variantOf], references: [id])
+  distributions   DistributionRecord[]
+
+  @@index([projectId])
+  @@index([briefId])
+  @@index([status])
+  @@map("content_pieces")
+}
+
+// ─────────────────────────────────────────────────────────────
+// DISTRIBUTION RECORDS — Track where content has been pushed
+// ─────────────────────────────────────────────────────────────
+
+model DistributionRecord {
+  id              String    @id @default(uuid())
+  contentPieceId  String
+
+  channel         String    // "adobe_express", "wordpress", "social_media", "publisher_network", "email"
+  destination     String?   // Specific destination (e.g. publisher name, social platform)
+  status          String    @default("PENDING")  // PENDING, SENT, LIVE, FAILED, RECALLED
+  externalId      String?   // ID in the external system
+  externalUrl     String?   // Public URL of distributed content
+
+  // Distribution metadata
+  publishedAt     DateTime?
+  scheduledFor    DateTime?
+  metadata        Json      @default("{}")  // Channel-specific metadata
+
+  sentBy          String?   // userId who triggered distribution
+  errorMessage    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  contentPiece    ContentPiece @relation(fields: [contentPieceId], references: [id], onDelete: Cascade)
+
+  @@index([contentPieceId])
+  @@map("distribution_records")
 }
 
 model WorkspaceInvite {

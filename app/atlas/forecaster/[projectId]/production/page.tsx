@@ -34,6 +34,7 @@ const phases = [
   { id: 'content-plan', label: 'Content Plan', status: 'complete' as const },
   { id: 'pre-production', label: 'Pre-Production', status: 'complete' as const },
   { id: 'production', label: 'Production', status: 'active' as const },
+  { id: 'studio', label: 'Studio', status: 'locked' as const },
 ];
 
 export default function ProductionPage() {
@@ -338,19 +339,21 @@ export default function ProductionPage() {
             })}
           </div>
 
-          {/* Downstream lifecycle */}
+          {/* Continue to Studio */}
           <div className="console-card p-6">
-            <h3 className="text-xs font-mono tracking-[0.3em] text-text-dim mb-3">DOWNSTREAM LIFECYCLE</h3>
-            <div className="flex items-center gap-3 text-sm font-mono text-text-dim">
-              <span className="text-accent-teal">Production</span>
-              <span>→</span>
-              <span>Post-Production</span>
-              <span>→</span>
-              <span>Distribute</span>
-              <span>→</span>
-              <span>Learn</span>
-              <span>→</span>
-              <span>Recreate</span>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-mono tracking-[0.3em] text-text-dim mb-2">NEXT PHASE</h3>
+                <p className="text-text-secondary text-sm">
+                  Ready to produce content? The Studio generates publication-ready pieces from your approved briefs — with editing, review, and distribution controls.
+                </p>
+              </div>
+              <button
+                onClick={() => router.push(`/atlas/forecaster/${projectId}/studio`)}
+                className="px-6 py-3 rounded-lg font-mono text-sm font-bold bg-accent-teal/10 text-accent-teal border border-accent-teal/30 hover:bg-accent-teal/20 transition-all whitespace-nowrap"
+              >
+                Continue to Studio →
+              </button>
             </div>
           </div>
         </>
