@@ -311,6 +311,29 @@ export default function PreProductionPage() {
         </div>
       )}
 
+      {/* Quick Actions (Demo) */}
+      {briefs.length > 0 && approvedCount < briefs.length && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={async () => {
+              const unapproved = briefs.filter(b => b.status !== 'APPROVED');
+              for (const b of unapproved) {
+                await fetch('/api/atlas/production-briefs', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ briefId: b.id, status: 'APPROVED' }),
+                });
+              }
+              loadData();
+            }}
+            className="px-4 py-2 rounded-lg text-sm font-mono font-bold bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 hover:bg-emerald-400/20 transition-all"
+          >
+            ✓ Approve All Briefs ({briefs.length - approvedCount} pending)
+          </button>
+          <span className="text-text-dim text-xs font-mono">Quick action for demo</span>
+        </div>
+      )}
+
       {/* Filter Tabs */}
       {briefs.length > 0 && (
         <div className="flex gap-1 bg-console-surface rounded-lg p-1 flex-wrap">
